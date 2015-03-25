@@ -97,7 +97,7 @@ def PickUnusedPort(pid=None):
   port = None
   # Provide access to the portserver on an opt-in basis.
   if 'PORTSERVER_ADDRESS' in os.environ:
-    port = _GetPortFromPortServer(os.environ['PORTSERVER_ADDRESS'], pid=pid)
+    port = GetPortFromPortServer(os.environ['PORTSERVER_ADDRESS'], pid=pid)
   if not port:
     return _PickUnusedPortWithoutServer()
   return port
@@ -132,7 +132,7 @@ def _PickUnusedPortWithoutServer():
       return port
 
 
-def _GetPortFromPortServer(portserver_address, pid=None):
+def GetPortFromPortServer(portserver_address, pid=None):
   """Request a free a port from a system-wide portserver.
 
   This follows a very simple portserver protocol:
@@ -140,7 +140,7 @@ def _GetPortFromPortServer(portserver_address, pid=None):
   The response is a port number and a newline, 0 on failure.
 
   This function is an implementation detail of PickUnusedPort(), and
-  should not be called by code outside of this module.
+  should not normally be called by code outside of this module.
 
   Args:
     portserver_address: The address (path) of a unix domain socket

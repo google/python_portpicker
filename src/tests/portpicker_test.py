@@ -65,9 +65,9 @@ class PickUnusedPortTest(unittest.TestCase):
   @unittest.skipIf('PORTSERVER_ADDRESS' not in os.environ,
                    'no port server to test against')
   def testGetPortFromPortServer(self):
-    """Exercise the _GetPortFromPortServer() helper function."""
+    """Exercise the GetPortFromPortServer() helper function."""
     for _ in range(10):
-      port = portpicker._GetPortFromPortServer(os.environ['PORTSERVER_ADDRESS'])
+      port = portpicker.GetPortFromPortServer(os.environ['PORTSERVER_ADDRESS'])
       self.assertTrue(self.IsUnusedTCPPort(port))
       self.assertTrue(self.IsUnusedUDPPort(port))
 
@@ -75,7 +75,7 @@ class PickUnusedPortTest(unittest.TestCase):
     server = mock.Mock()
     server.recv.return_value = b'42768\n'
     with mock.patch.object(socket, 'socket', return_value=server):
-      port = portpicker._GetPortFromPortServer('portserver', pid=1234)
+      port = portpicker.GetPortFromPortServer('portserver', pid=1234)
       server.sendall.assert_called_once_with(b'1234\n')
     self.assertEqual(port, 42768)
 
@@ -84,7 +84,7 @@ class PickUnusedPortTest(unittest.TestCase):
     server.recv.return_value = b'52768\n'
     with mock.patch.object(socket, 'socket', return_value=server):
       with mock.patch.object(os, 'getpid', return_value=9876):
-        port = portpicker._GetPortFromPortServer('portserver')
+        port = portpicker.GetPortFromPortServer('portserver')
         server.sendall.assert_called_once_with(b'9876\n')
     self.assertEqual(port, 52768)
 
