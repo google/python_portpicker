@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+#
 """Tests for the example portserver."""
 
 import asyncio
@@ -81,8 +81,8 @@ class PortserverFunctionsTest(unittest.TestCase):
         self.assertCountEqual(portserver._parse_port_ranges('1-1,3-8,375-378'),
                               {1, 3, 4, 5, 6, 7, 8, 375, 376, 377, 378})
         # Unparsable parts are logged but ignored.
-        self.assertEqual(
-            {1, 2}, portserver._parse_port_ranges('1-2,not,numbers'))
+        self.assertEqual({1, 2},
+                         portserver._parse_port_ranges('1-2,not,numbers'))
         self.assertEqual(set(), portserver._parse_port_ranges('8080-8081x'))
         # Port ranges that go out of bounds are logged but ignored.
         self.assertEqual(set(), portserver._parse_port_ranges('0-1138'))
@@ -95,9 +95,9 @@ class PortserverFunctionsTest(unittest.TestCase):
         portserver._configure_logging(True)
 
     @mock.patch.object(
-        sys, 'argv',
-        ['PortserverFunctionsTest.test_main',
-         '--portserver_unix_socket_address=@TST-%d' % os.getpid()])
+        sys, 'argv', ['PortserverFunctionsTest.test_main',
+                      '--portserver_unix_socket_address=@TST-%d' % os.getpid()]
+    )
     @mock.patch.object(portserver, '_parse_port_ranges')
     @mock.patch('asyncio.get_event_loop')
     @mock.patch('asyncio.start_unix_server')
@@ -162,7 +162,6 @@ class PortPoolTest(unittest.TestCase):
 @mock.patch.object(portserver, '_should_allocate_port')
 @mock.patch.object(portserver._PortPool, 'get_port_for_process')
 class PortServerRequestHandlerTest(unittest.TestCase):
-
     def setUp(self):
         portserver._configure_logging(verbose=True)
         self.rh = portserver._PortServerRequestHandler([23, 42, 54])

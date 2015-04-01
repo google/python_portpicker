@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+#
 """Unittests for the portpicker module."""
 
 import os
@@ -31,7 +31,6 @@ import portpicker
 
 
 class PickUnusedPortTest(unittest.TestCase):
-
     def IsUnusedTCPPort(self, port):
         return self._bind(port, socket.SOCK_STREAM, socket.IPPROTO_TCP)
 
@@ -55,7 +54,8 @@ class PickUnusedPortTest(unittest.TestCase):
 
         with mock.patch.object(portpicker, '_PickUnusedPortWithoutServer'):
             portpicker._PickUnusedPortWithoutServer.side_effect = (
-                Exception('eek!'))
+                Exception('eek!')
+            )
 
             # Since _PickUnusedPortWithoutServer() raises an exception, if we
             # can successfully obtain a port, the portserver must be working.
@@ -108,8 +108,8 @@ class PickUnusedPortTest(unittest.TestCase):
             # requested, or if we're checking that the last OS-assigned port
             # is unused on the other protocol.
             if port == 0 or port == self.last_assigned_port:
-                self.last_assigned_port = self._bind(
-                    port, socket_type, socket_proto)
+                self.last_assigned_port = self._bind(port, socket_type,
+                                                     socket_proto)
                 return self.last_assigned_port
             else:
                 return None

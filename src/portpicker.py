@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+#
 """Pure python code for finding unused ports on a host.
 
 This module provides a pure python implementation of PickUnusedPort.
@@ -40,7 +40,6 @@ import os
 import random
 import socket
 import sys
-
 
 _PROTOS = [(socket.SOCK_STREAM, socket.IPPROTO_TCP),
            (socket.SOCK_DGRAM, socket.IPPROTO_UDP)]
@@ -181,13 +180,13 @@ def GetPortFromPortServer(portserver_address, pid=None):
         finally:
             sock.close()
     except socket.error:
-        print ('Socket error when connecting to portserver.', file=sys.stderr)
+        print('Socket error when connecting to portserver.', file=sys.stderr)
         return None
 
     try:
         return int(buf.split(b'\n')[0])
     except ValueError:
-        print ('Portserver failed to find a port.', file=sys.stderr)
+        print('Portserver failed to find a port.', file=sys.stderr)
         return None
 
 
@@ -197,4 +196,4 @@ if __name__ == '__main__':
     port = PickUnusedPort(pid=int(sys.argv[1]) if len(sys.argv) > 1 else None)
     if not port:
         sys.exit(1)
-    print (port)
+    print(port)

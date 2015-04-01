@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+#
 """A server to hand out network ports to applications running on one host.
 
 Typical usage:
@@ -35,7 +35,6 @@ import os
 import signal
 import socket
 import sys
-
 
 log = None  # Initialized to a logging.Logger by _configure_logging().
 
@@ -158,8 +157,9 @@ class _PortPool(object):
                     self.ports_checked_for_last_request = check_count
                     return candidate.port
                 else:
-                    log.info('Port %d unexpectedly in use, last owning pid %d.',
-                             candidate.port, candidate.pid)
+                    log.info(
+                        'Port %d unexpectedly in use, last owning pid %d.',
+                        candidate.port, candidate.pid)
 
         log.info('All ports in use.')
         self.ports_checked_for_last_request = check_count
@@ -198,7 +198,7 @@ class _PortServerRequestHandler(object):
 
     @asyncio.coroutine
     def handle_port_request(self, reader, writer):
-        # XXX#client_data = yield from reader.read(100)
+        client_data = yield from reader.read(100)
         self._handle_port_request(client_data, writer)
         writer.close()
 
@@ -239,9 +239,8 @@ class _PortServerRequestHandler(object):
             'client-request-errors {}'.format(self._client_request_errors))
         stats.append('denied-allocations {}'.format(self._denied_allocations))
         stats.append('num-ports-managed {}'.format(self._port_pool.num_ports()))
-        stats.append(
-            'num-ports-checked-for-last-request {}'.format(
-                self._port_pool.ports_checked_for_last_request))
+        stats.append('num-ports-checked-for-last-request {}'.format(
+            self._port_pool.ports_checked_for_last_request))
         stats.append('total-allocations {}'.format(self._total_allocations))
         for stat in stats:
             log.info(stat)
@@ -251,17 +250,23 @@ def _parse_command_line():
     """Configure and parse our command line flags."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--portserver_static_pool', type=str,
+        '--portserver_static_pool',
+        type=str,
         default='32768-60000',
         help='Comma separated N-P Range(s) of ports to manage.')
     parser.add_argument(
-        '--portserver_unix_socket_address', type=str,
+        '--portserver_unix_socket_address',
+        type=str,
         default='@unittest-portserver',
         help='Address of AF_UNIX socket on which to listen (first @ is a NUL).')
-    parser.add_argument('--verbose', action='store_true',
-                        default=False, help='Enable verbose messages.')
-    parser.add_argument('--debug', action='store_true',
-                        default=False, help='Enable full debug messages.')
+    parser.add_argument('--verbose',
+                        action='store_true',
+                        default=False,
+                        help='Enable verbose messages.')
+    parser.add_argument('--debug',
+                        action='store_true',
+                        default=False,
+                        help='Enable full debug messages.')
     return parser.parse_args(sys.argv[1:])
 
 
@@ -288,7 +293,9 @@ def _configure_logging(verbose=False, debug=False):
     logging.basicConfig(
         format=('{levelname[0]}{asctime}.{msecs:03.0f} {thread} '
                 '{filename}:{lineno}] {message}'),
-        datefmt='%m%d %H:%M:%S', style='{', level=overall_level)
+        datefmt='%m%d %H:%M:%S',
+        style='{',
+        level=overall_level)
     global log
     log = logging.getLogger('portserver')
     # The verbosity controls our loggers logging level, not the global
