@@ -41,6 +41,7 @@ def main():
           unittests or for test harnesses that launch local servers."""),
         license='Apache 2.0',
         maintainer='Google',
+        maintainer_email='greg@krypto.org',
         url='https://github.com/google/python_portpicker',
         package_dir={'': 'src'},
         py_modules=['portpicker'],
