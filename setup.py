@@ -33,7 +33,7 @@ def main():
 
     distutils.core.setup(
         name='portpicker',
-        version='1.0.1',
+        version='1.1.0',
         description='A library to choose unique available network ports.',
         long_description=textwrap.dedent("""\
           Portpicker provides an API to find and return an available network

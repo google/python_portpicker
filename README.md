@@ -3,7 +3,7 @@
 This module is useful finding unused network ports on a host.
 It supports both Python 2 and Python 3.
 
-It provides a Python implementation of PickUnusedPort.
+This module provides a pure Python `pick_unused_port()` function.
 It can also be called via the command line for use in shell scripts.
 
 If your code can accept a bound TCP socket rather than a port number consider
@@ -14,7 +14,7 @@ There is a race condition between picking a port and your application code
 binding to it.  The use of a port server by all of your test code to avoid
 that problem is recommended on loaded test hosts running many tests at a time.
 
-Unless you are using a port server, subsequent calls to PickUnusedPort() to
+Unless you are using a port server, subsequent calls to `pick_unused_port()` to
 obtain an additional port are not guaranteed to return a unique port.
 
 ### What is the optional port server?
@@ -41,7 +41,7 @@ each be unique.
 
 ```python
 import portpicker
-test_port = portpicker.PickUnusedPort()
+test_port = portpicker.pick_unused_port()
 ```
 
 Or from the command line:

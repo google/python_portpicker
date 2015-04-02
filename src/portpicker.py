@@ -16,7 +16,7 @@
 #
 """Pure python code for finding unused ports on a host.
 
-This module provides a pure python implementation of PickUnusedPort.
+This module provides a pick_unused_port() function.
 It can also be called via the command line for use in shell scripts.
 When called from the command line, it takes one optional argument, which,
 if given, is sent to portserver instead of portpicker's PID.
@@ -32,7 +32,7 @@ port number consider using socket.bind(('localhost', 0)) to bind to an
 available port without a race condition rather than using this library.
 
 Typical usage:
-  test_port = portpicker.PickUnusedPort()
+  test_port = portpicker.pick_unused_port()
 """
 
 from __future__ import print_function
@@ -41,11 +41,15 @@ import random
 import socket
 import sys
 
+# The legacy Bind, IsPortFree, etc. names are not exported.
+__all__ = ('bind', 'is_port_free', 'pick_unused_port',
+           'get_port_from_port_server')
+
 _PROTOS = [(socket.SOCK_STREAM, socket.IPPROTO_TCP),
            (socket.SOCK_DGRAM, socket.IPPROTO_UDP)]
 
 
-def Bind(port, socket_type, socket_proto):
+def bind(port, socket_type, socket_proto):
     """Try to bind to a socket of the specified type, protocol, and port.
 
     This is primarily a helper function for PickUnusedPort, used to see
@@ -59,19 +63,20 @@ def Bind(port, socket_type, socket_proto):
     Returns:
       The port number on success or None on failure.
     """
-    s = socket.socket(socket.AF_INET, socket_type, socket_proto)
+    sock = socket.socket(socket.AF_INET, socket_type, socket_proto)
     try:
-        try:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(('', port))
-            return s.getsockname()[1]
-        except socket.error:
-            return None
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(('', port))
+        return sock.getsockname()[1]
+    except socket.error:
+        return None
     finally:
-        s.close()
+        sock.close()
+
+Bind = bind  # legacy API. pylint: disable=invalid-name
 
 
-def IsPortFree(port):
+def is_port_free(port):
     """Check if specified port is free.
 
     Args:
@@ -79,11 +84,13 @@ def IsPortFree(port):
     Returns:
       boolean, whether it is free to use for both TCP and UDP
     """
-    return (Bind(port, _PROTOS[0][0], _PROTOS[0][1]) and
-            Bind(port, _PROTOS[1][0], _PROTOS[1][1]))
+    return (bind(port, _PROTOS[0][0], _PROTOS[0][1]) and
+            bind(port, _PROTOS[1][0], _PROTOS[1][1]))
+
+IsPortFree = is_port_free  # legacy API. pylint: disable=invalid-name
 
 
-def PickUnusedPort(pid=None):
+def pick_unused_port(pid=None):
     """A pure python implementation of PickUnusedPort.
 
     Args:
@@ -97,14 +104,17 @@ def PickUnusedPort(pid=None):
     port = None
     # Provide access to the portserver on an opt-in basis.
     if 'PORTSERVER_ADDRESS' in os.environ:
-        port = GetPortFromPortServer(os.environ['PORTSERVER_ADDRESS'], pid=pid)
+        port = get_port_from_port_server(os.environ['PORTSERVER_ADDRESS'],
+                                         pid=pid)
     if not port:
-        return _PickUnusedPortWithoutServer()
+        return _pick_unused_port_without_server()
     return port
 
+PickUnusedPort = pick_unused_port  # legacy API. pylint: disable=invalid-name
 
-def _PickUnusedPortWithoutServer():
-    """A pure python implementation of PickUnusedPort_NoServer().
+
+def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-name
+    """Pick an available network port without the help of a port server.
 
     This code ensures that the port is available on both TCP and UDP.
 
@@ -115,10 +125,10 @@ def _PickUnusedPortWithoutServer():
       A port number that is unused on both TCP and UDP.  None on error.
     """
     # Try random ports first.
-    r = random.Random()
+    rng = random.Random()
     for _ in range(10):
-        port = int(r.randrange(32768, 60000))
-        if IsPortFree(port):
+        port = int(rng.randrange(32768, 60000))
+        if is_port_free(port):
             return port
 
     # Try OS-assigned ports next.
@@ -126,21 +136,21 @@ def _PickUnusedPortWithoutServer():
     # returns the same port over and over. So always try TCP first.
     while True:
         # Ask the OS for an unused port.
-        port = Bind(0, _PROTOS[0][0], _PROTOS[0][1])
+        port = bind(0, _PROTOS[0][0], _PROTOS[0][1])
         # Check if this port is unused on the other protocol.
-        if port and Bind(port, _PROTOS[1][0], _PROTOS[1][1]):
+        if port and bind(port, _PROTOS[1][0], _PROTOS[1][1]):
             return port
 
 
-def GetPortFromPortServer(portserver_address, pid=None):
+def get_port_from_port_server(portserver_address, pid=None):
     """Request a free a port from a system-wide portserver.
 
     This follows a very simple portserver protocol:
     The request consists of our pid (in ASCII) followed by a newline.
     The response is a port number and a newline, 0 on failure.
 
-    This function is an implementation detail of PickUnusedPort(), and
-    should not normally be called by code outside of this module.
+    This function is an implementation detail of pick_unused_port().
+    It should not normally be called by code outside of this module.
 
     Args:
       portserver_address: The address (path) of a unix domain socket
@@ -189,11 +199,16 @@ def GetPortFromPortServer(portserver_address, pid=None):
         print('Portserver failed to find a port.', file=sys.stderr)
         return None
 
+GetPortFromPortServer = get_port_from_port_server  # legacy API. pylint: disable=invalid-name
 
-if __name__ == '__main__':
-    # If passed an argument, cast it to int and treat it as a PID, otherwise pass
-    # pid=None to use portpicker's PID.
-    port = PickUnusedPort(pid=int(sys.argv[1]) if len(sys.argv) > 1 else None)
+
+def main(argv):
+    """If passed an arg, treat it as a PID, otherwise portpicker uses getpid."""
+    port = pick_unused_port(pid=int(argv[1]) if len(argv) > 1 else None)
     if not port:
         sys.exit(1)
     print(port)
+
+
+if __name__ == '__main__':
+    main(sys.argv)
