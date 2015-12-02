@@ -38,6 +38,9 @@ import sys
 
 log = None  # Initialized to a logging.Logger by _configure_logging().
 
+_PROTOS = [(socket.SOCK_STREAM, socket.IPPROTO_TCP),
+           (socket.SOCK_DGRAM, socket.IPPROTO_UDP)]
+
 
 def _get_process_command_line(pid):
     try:
@@ -55,23 +58,51 @@ def _get_process_start_time(pid):
         return 0
 
 
-def _port_is_available(port):
-    """Return False if the given network port is currently in use."""
-    for socket_type, proto in ((socket.SOCK_STREAM, socket.IPPROTO_TCP),
-                               (socket.SOCK_DGRAM, 0)):
-        sock = None
+def _bind(port, socket_type, socket_proto):
+    """Try to bind to a socket of the specified type, protocol, and port.
+
+    For the port to be considered available, the kernel must support at least
+    one of (IPv6, IPv4), and the port must be available on each supported
+    family.
+
+    Args:
+      port: The port number to bind to, or 0 to have the OS pick a free port.
+      socket_type: The type of the socket (ex: socket.SOCK_STREAM).
+      socket_proto: The protocol of the socket (ex: socket.IPPROTO_TCP).
+
+    Returns:
+      The port number on success or None on failure.
+    """
+    got_socket = False
+    for family in (socket.AF_INET6, socket.AF_INET):
         try:
-            sock = socket.socket(socket.AF_INET, socket_type, proto)
+            sock = socket.socket(family, socket_type, socket_proto)
+            got_socket = True
+        except socket.error:
+            continue
+        try:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.bind(('', port))
             if socket_type == socket.SOCK_STREAM:
                 sock.listen(1)
+            port = sock.getsockname()[1]
         except socket.error:
-            return False
+            return None
         finally:
-            if sock:
-                sock.close()
-    return True
+            sock.close()
+    return port if got_socket else None
+
+
+def _is_port_free(port):
+    """Check if specified port is free.
+
+    Args:
+      port: integer, port to check
+    Returns:
+      boolean, whether it is free to use for both TCP and UDP
+    """
+    return (_bind(port, _PROTOS[0][0], _PROTOS[0][1]) and
+            _bind(port, _PROTOS[1][0], _PROTOS[1][1]))
 
 
 def _should_allocate_port(pid):
@@ -149,7 +180,7 @@ class _PortPool(object):
             check_count += 1
             if (candidate.start_time == 0 or
                 candidate.start_time != _get_process_start_time(candidate.pid)):
-                if _port_is_available(candidate.pid):
+                if _is_port_free(candidate.pid):
                     candidate.pid = pid
                     candidate.start_time = _get_process_start_time(pid)
                     if not candidate.start_time:

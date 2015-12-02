@@ -16,6 +16,7 @@
 #
 """Tests for the example portserver."""
 
+from __future__ import print_function
 import asyncio
 import os
 import socket
@@ -43,15 +44,49 @@ class PortserverFunctionsTest(unittest.TestCase):
     def test_get_process_start_time(self):
         self.assertGreater(portserver._get_process_start_time(os.getpid()), 0)
 
-    def test_port_is_available_true(self):
+    def test_is_port_free(self):
         """This might be flaky unless this test is run with a portserver."""
-        # Insert Inception "we must go deeper" meme here.
-        self.assertTrue(portserver._port_is_available(self.port))
+        # The port should be free initially.
+        self.assertTrue(portserver._is_port_free(self.port))
 
-    def test_port_is_available_false(self):
+        cases = [
+            (socket.AF_INET,  socket.SOCK_STREAM, None),
+            (socket.AF_INET6, socket.SOCK_STREAM, 0),
+            (socket.AF_INET6, socket.SOCK_STREAM, 1),
+            (socket.AF_INET,  socket.SOCK_DGRAM,  None),
+            (socket.AF_INET6, socket.SOCK_DGRAM,  0),
+            (socket.AF_INET6, socket.SOCK_DGRAM,  1),
+        ]
+        for (sock_family, sock_type, v6only) in cases:
+            # Occupy the port on a subset of possible protocols.
+            try:
+                sock = socket.socket(sock_family, sock_type, 0)
+            except socket.error:
+                print('Kernel does not support sock_family=%d' % sock_family,
+                      file=sys.stderr)
+                # Skip this case, since we cannot occupy a port.
+                continue
+            if v6only is not None:
+                try:
+                    sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY,
+                                    v6only)
+                except socket.error:
+                    print('Kernel does not support IPV6_V6ONLY=%d' % v6only,
+                          file=sys.stderr)
+                    # Don't care; just proceed with the default.
+            sock.bind(('', self.port))
+
+            # The port should be busy.
+            self.assertFalse(portserver._is_port_free(self.port))
+            sock.close()
+
+            # Now it's free again.
+            self.assertTrue(portserver._is_port_free(self.port))
+
+    def test_is_port_free_exception(self):
         with mock.patch.object(socket, 'socket') as mock_sock:
             mock_sock.side_effect = socket.error('fake socket error', 0)
-            self.assertFalse(portserver._port_is_available(self.port))
+            self.assertFalse(portserver._is_port_free(self.port))
 
     def test_should_allocate_port(self):
         self.assertFalse(portserver._should_allocate_port(0))
@@ -140,18 +175,18 @@ class PortPoolTest(unittest.TestCase):
         self.assertRaises(ValueError, self.pool.add_port_to_free_pool, 0)
         self.assertRaises(ValueError, self.pool.add_port_to_free_pool, 65536)
 
-    @mock.patch.object(portserver, '_port_is_available')
-    def test_get_port_for_process_ok(self, mock_port_is_available):
+    @mock.patch.object(portserver, '_is_port_free')
+    def test_get_port_for_process_ok(self, mock_is_port_free):
         self.pool.add_port_to_free_pool(self.port)
-        mock_port_is_available.return_value = True
+        mock_is_port_free.return_value = True
         self.assertEqual(self.port, self.pool.get_port_for_process(os.getpid()))
         self.assertEqual(1, self.pool.ports_checked_for_last_request)
 
-    @mock.patch.object(portserver, '_port_is_available')
-    def test_get_port_for_process_none_left(self, mock_port_is_available):
+    @mock.patch.object(portserver, '_is_port_free')
+    def test_get_port_for_process_none_left(self, mock_is_port_free):
         self.pool.add_port_to_free_pool(self.port)
         self.pool.add_port_to_free_pool(22)
-        mock_port_is_available.return_value = False
+        mock_is_port_free.return_value = False
         self.assertEqual(2, self.pool.num_ports())
         self.assertEqual(0, self.pool.get_port_for_process(os.getpid()))
         self.assertEqual(2, self.pool.num_ports())

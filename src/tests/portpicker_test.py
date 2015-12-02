@@ -16,9 +16,11 @@
 #
 """Unittests for the portpicker module."""
 
+from __future__ import print_function
 import os
 import random
 import socket
+import sys
 import unittest
 
 try:
@@ -136,6 +138,52 @@ class PickUnusedPortTest(unittest.TestCase):
                 port = portpicker._pick_unused_port_without_server()
                 self.assertTrue(self.IsUnusedTCPPort(port))
                 self.assertTrue(self.IsUnusedUDPPort(port))
+
+    def testIsPortFree(self):
+        """This might be flaky unless this test is run with a portserver."""
+        # The port should be free initially.
+        port = portpicker.pick_unused_port()
+        self.assertTrue(portpicker.is_port_free(port))
+
+        cases = [
+            (socket.AF_INET,  socket.SOCK_STREAM, None),
+            (socket.AF_INET6, socket.SOCK_STREAM, 0),
+            (socket.AF_INET6, socket.SOCK_STREAM, 1),
+            (socket.AF_INET,  socket.SOCK_DGRAM,  None),
+            (socket.AF_INET6, socket.SOCK_DGRAM,  0),
+            (socket.AF_INET6, socket.SOCK_DGRAM,  1),
+        ]
+        for (sock_family, sock_type, v6only) in cases:
+            # Occupy the port on a subset of possible protocols.
+            try:
+                sock = socket.socket(sock_family, sock_type, 0)
+            except socket.error:
+                print('Kernel does not support sock_family=%d' % sock_family,
+                      file=sys.stderr)
+                # Skip this case, since we cannot occupy a port.
+                continue
+            if v6only is not None:
+                try:
+                    sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY,
+                                    v6only)
+                except socket.error:
+                    print('Kernel does not support IPV6_V6ONLY=%d' % v6only,
+                          file=sys.stderr)
+                    # Don't care; just proceed with the default.
+            sock.bind(('', port))
+
+            # The port should be busy.
+            self.assertFalse(portpicker.is_port_free(port))
+            sock.close()
+
+            # Now it's free again.
+            self.assertTrue(portpicker.is_port_free(port))
+
+    def testIsPortFreeException(self):
+        port = portpicker.pick_unused_port()
+        with mock.patch.object(socket, 'socket') as mock_sock:
+            mock_sock.side_effect = socket.error('fake socket error', 0)
+            self.assertFalse(portpicker.is_port_free(port))
 
     def testThatLegacyCapWordsAPIsExist(self):
         """The original APIs were CapWords style, 1.1 added PEP8 names."""
