@@ -58,6 +58,7 @@ def _get_process_start_time(pid):
         return 0
 
 
+# TODO: Consider importing portpicker.bind() instead of duplicating the code.
 def _bind(port, socket_type, socket_proto):
     """Try to bind to a socket of the specified type, protocol, and port.
 
@@ -101,8 +102,7 @@ def _is_port_free(port):
     Returns:
       boolean, whether it is free to use for both TCP and UDP
     """
-    return (_bind(port, _PROTOS[0][0], _PROTOS[0][1]) and
-            _bind(port, _PROTOS[1][0], _PROTOS[1][1]))
+    return _bind(port, *_PROTOS[0]) and _bind(port, *_PROTOS[1])
 
 
 def _should_allocate_port(pid):

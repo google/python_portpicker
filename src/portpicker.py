@@ -97,8 +97,7 @@ def is_port_free(port):
     Returns:
       boolean, whether it is free to use for both TCP and UDP
     """
-    return (bind(port, _PROTOS[0][0], _PROTOS[0][1]) and
-            bind(port, _PROTOS[1][0], _PROTOS[1][1]))
+    return bind(port, *_PROTOS[0]) and bind(port, *_PROTOS[1])
 
 IsPortFree = is_port_free  # legacy API. pylint: disable=invalid-name
 
