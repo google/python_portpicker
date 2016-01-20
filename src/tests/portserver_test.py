@@ -192,6 +192,28 @@ class PortPoolTest(unittest.TestCase):
         self.assertEqual(2, self.pool.num_ports())
         self.assertEqual(2, self.pool.ports_checked_for_last_request)
 
+    @mock.patch.object(portserver, '_is_port_free')
+    @mock.patch.object(os, 'getpid')
+    def test_get_port_for_process_pid_eq_port(self, mock_getpid, mock_is_port_free):
+        self.pool.add_port_to_free_pool(12345)
+        self.pool.add_port_to_free_pool(12344)
+        mock_is_port_free.side_effect = lambda port: port == os.getpid()
+        mock_getpid.return_value = 12345
+        self.assertEqual(2, self.pool.num_ports())
+        self.assertEqual(12345, self.pool.get_port_for_process(os.getpid()))
+        self.assertEqual(2, self.pool.ports_checked_for_last_request)
+
+    @mock.patch.object(portserver, '_is_port_free')
+    @mock.patch.object(os, 'getpid')
+    def test_get_port_for_process_pid_ne_port(self, mock_getpid, mock_is_port_free):
+        self.pool.add_port_to_free_pool(12344)
+        self.pool.add_port_to_free_pool(12345)
+        mock_is_port_free.side_effect = lambda port: port != os.getpid()
+        mock_getpid.return_value = 12345
+        self.assertEqual(2, self.pool.num_ports())
+        self.assertEqual(12344, self.pool.get_port_for_process(os.getpid()))
+        self.assertEqual(2, self.pool.ports_checked_for_last_request)
+
 
 @mock.patch.object(portserver, '_get_process_command_line')
 @mock.patch.object(portserver, '_should_allocate_port')

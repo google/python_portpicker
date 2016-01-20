@@ -1,6 +1,7 @@
 ## 1.1.1
 
 * Changed default port range to 15000-24999 to avoid ephemeral ports.
+* Portserver bugfix.
 
 ## 1.1.0
 
