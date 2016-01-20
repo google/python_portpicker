@@ -1,3 +1,7 @@
+## 1.1.1
+
+* Changed default port range to 15000-24999 to avoid ephemeral ports.
+
 ## 1.1.0
 
 * Renamed portpicker APIs to use PEP8 style function names in code and docs.
