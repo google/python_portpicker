@@ -139,7 +139,7 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
     # Try random ports first.
     rng = random.Random()
     for _ in range(10):
-        port = int(rng.randrange(32768, 60000))
+        port = int(rng.randrange(15000, 25000))
         if is_port_free(port):
             return port
 

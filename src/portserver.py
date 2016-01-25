@@ -180,7 +180,7 @@ class _PortPool(object):
             check_count += 1
             if (candidate.start_time == 0 or
                 candidate.start_time != _get_process_start_time(candidate.pid)):
-                if _is_port_free(candidate.pid):
+                if _is_port_free(candidate.port):
                     candidate.pid = pid
                     candidate.start_time = _get_process_start_time(pid)
                     if not candidate.start_time:
@@ -283,8 +283,8 @@ def _parse_command_line():
     parser.add_argument(
         '--portserver_static_pool',
         type=str,
-        default='32768-60000',
-        help='Comma separated N-P Range(s) of ports to manage.')
+        default='15000-24999',
+        help='Comma separated N-P Range(s) of ports to manage (inclusive).')
     parser.add_argument(
         '--portserver_unix_socket_address',
         type=str,
