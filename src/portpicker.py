@@ -201,8 +201,9 @@ def get_port_from_port_server(portserver_address, pid=None):
             buf = sock.recv(1024)
         finally:
             sock.close()
-    except socket.error:
-        print('Socket error when connecting to portserver.', file=sys.stderr)
+    except socket.error as e:
+        print('Socket error when connecting to portserver: ' + str(e),
+              file=sys.stderr)
         return None
 
     try:
