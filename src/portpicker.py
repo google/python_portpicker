@@ -36,17 +36,48 @@ Typical usage:
 """
 
 from __future__ import print_function
+
+import logging
 import os
 import random
 import socket
 import sys
 
 # The legacy Bind, IsPortFree, etc. names are not exported.
-__all__ = ('bind', 'is_port_free', 'pick_unused_port',
-           'get_port_from_port_server')
+__all__ = ('bind', 'is_port_free', 'pick_unused_port', 'return_port',
+           'add_reserved_port', 'get_port_from_port_server')
 
 _PROTOS = [(socket.SOCK_STREAM, socket.IPPROTO_TCP),
            (socket.SOCK_DGRAM, socket.IPPROTO_UDP)]
+
+
+# Ports that are currently available to be given out.
+_free_ports = set()
+
+# Ports that are reserved or from the portserver that may be returned.
+_owned_ports = set()
+
+# Ports that we chose randomly that may be returned.
+_random_ports = set()
+
+
+def add_reserved_port(port):
+    """Add a port that was acquired by means other than the port server."""
+    _free_ports.add(port)
+
+
+def return_port(port):
+    """Return a port that is no longer being used so it can be reused."""
+    if port in _random_ports:
+        _random_ports.remove(port)
+    elif port in _owned_ports:
+        _owned_ports.remove(port)
+        _free_ports.add(port)
+    elif port in _free_ports:
+        logging.info("Returning a port that was already returned: %s", port)
+    else:
+        logging.info("Returning a port that wasn't given by portpicker: %s",
+                     port)
 
 
 def bind(port, socket_type, socket_proto):
@@ -113,14 +144,17 @@ def pick_unused_port(pid=None):
     Returns:
       A port number that is unused on both TCP and UDP.
     """
-    port = None
+    if _free_ports:
+        port = _free_ports.pop()
+        _owned_ports.add(port)
+        return port
     # Provide access to the portserver on an opt-in basis.
     if 'PORTSERVER_ADDRESS' in os.environ:
         port = get_port_from_port_server(os.environ['PORTSERVER_ADDRESS'],
                                          pid=pid)
-    if not port:
-        return _pick_unused_port_without_server()
-    return port
+        if port:
+            return port
+    return _pick_unused_port_without_server()
 
 PickUnusedPort = pick_unused_port  # legacy API. pylint: disable=invalid-name
 
@@ -141,6 +175,7 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
     for _ in range(10):
         port = int(rng.randrange(15000, 25000))
         if is_port_free(port):
+            _random_ports.add(port)
             return port
 
     # Try OS-assigned ports next.
@@ -151,6 +186,7 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
         port = bind(0, _PROTOS[0][0], _PROTOS[0][1])
         # Check if this port is unused on the other protocol.
         if port and bind(port, _PROTOS[1][0], _PROTOS[1][1]):
+            _random_ports.add(port)
             return port
 
 
@@ -207,10 +243,13 @@ def get_port_from_port_server(portserver_address, pid=None):
         return None
 
     try:
-        return int(buf.split(b'\n')[0])
+        port = int(buf.split(b'\n')[0])
     except ValueError:
         print('Portserver failed to find a port.', file=sys.stderr)
         return None
+    _owned_ports.add(port)
+    return port
+
 
 GetPortFromPortServer = get_port_from_port_server  # legacy API. pylint: disable=invalid-name
 
