@@ -42,6 +42,9 @@ class PickUnusedPortTest(unittest.TestCase):
     def setUp(self):
         # So we can Bind even if portpicker.bind is stubbed out.
         self._bind = portpicker.bind
+        portpicker._owned_ports.clear()
+        portpicker._free_ports.clear()
+        portpicker._random_ports.clear()
 
     def testPickUnusedPortActuallyWorks(self):
         """This test can be flaky."""
@@ -91,6 +94,50 @@ class PickUnusedPortTest(unittest.TestCase):
                 port = portpicker.get_port_from_port_server('portserver')
                 server.sendall.assert_called_once_with(b'9876\n')
         self.assertEqual(port, 52768)
+
+    @mock.patch.dict(os.environ,{'PORTSERVER_ADDRESS': 'portserver'})
+    def testReusesPortServerPorts(self):
+        server = mock.Mock()
+        server.recv.side_effect = [b'12345\n', b'23456\n', b'34567\n']
+        with mock.patch.object(socket, 'socket', return_value=server):
+            self.assertEqual(portpicker.pick_unused_port(), 12345)
+            self.assertEqual(portpicker.pick_unused_port(), 23456)
+            portpicker.return_port(12345)
+            self.assertEqual(portpicker.pick_unused_port(), 12345)
+
+    @mock.patch.dict(os.environ,{'PORTSERVER_ADDRESS': ''})
+    def testDoesntReuseRandomPorts(self):
+        ports = set()
+        for _ in range(10):
+            port = portpicker.pick_unused_port()
+            ports.add(port)
+            portpicker.return_port(port)
+        self.assertGreater(len(ports), 5)  # Allow some random reuse.
+
+    def testReturnsReservedPorts(self):
+        with mock.patch.object(portpicker, '_pick_unused_port_without_server'):
+            portpicker._pick_unused_port_without_server.side_effect = (
+                Exception('eek!'))
+            # Arbitrary port. In practice you should get this from somewhere
+            # that assigns ports.
+            reserved_port = 28465
+            portpicker.add_reserved_port(reserved_port)
+            ports = set()
+            for _ in range(10):
+                port = portpicker.pick_unused_port()
+                ports.add(port)
+                portpicker.return_port(port)
+            self.assertEqual(len(ports), 1)
+            self.assertEqual(ports.pop(), reserved_port)
+
+    @mock.patch.dict(os.environ,{'PORTSERVER_ADDRESS': ''})
+    def testFallsBackToRandomAfterRunningOutOfReservedPorts(self):
+        # Arbitrary port. In practice you should get this from somewhere
+        # that assigns ports.
+        reserved_port = 23456
+        portpicker.add_reserved_port(reserved_port)
+        self.assertEqual(portpicker.pick_unused_port(), reserved_port)
+        self.assertNotEqual(portpicker.pick_unused_port(), reserved_port)
 
     def testRandomlyChosenPorts(self):
         # Unless this box is under an overwhelming socket load, this test
