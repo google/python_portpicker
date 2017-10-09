@@ -1,3 +1,8 @@
+## 1.2.0
+
+* Introduced `add_reserved_port()` and `return_port()` APIs to allow ports to
+  be recycled and allow users to bring ports of their own.
+
 ## 1.1.1
 
 * Changed default port range to 15000-24999 to avoid ephemeral ports.
