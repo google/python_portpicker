@@ -14,9 +14,11 @@
 #
 """Simple distutils setup for the pure Python portpicker."""
 
-import distutils.core
 import sys
 import textwrap
+
+
+import setuptools
 
 
 def main():
@@ -31,7 +33,7 @@ def main():
         # The example portserver implementation requires Python 3 and asyncio.
         scripts.append('src/portserver.py')
 
-    distutils.core.setup(
+    setuptools.setup(
         name='portpicker',
         version='1.2.0',
         description='A library to choose unique available network ports.',
