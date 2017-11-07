@@ -1,6 +1,6 @@
 # Python portpicker module
 
-This module is useful finding unused network ports on a host.
+This module is useful for finding unused network ports on a host.
 It supports both Python 2 and Python 3.
 
 This module provides a pure Python `pick_unused_port()` function.
