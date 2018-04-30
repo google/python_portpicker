@@ -209,6 +209,10 @@ class PickUnusedPortTest(unittest.TestCase):
                       file=sys.stderr)
                 # Skip this case, since we cannot occupy a port.
                 continue
+
+            if not hasattr(socket, 'IPPROTO_IPV6'):
+                v6only = None
+
             if v6only is not None:
                 try:
                     sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY,
