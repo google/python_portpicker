@@ -224,7 +224,11 @@ def get_port_from_port_server(portserver_address, pid=None):
 
     try:
         # Create socket.
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        if hasattr(socket, 'AF_UNIX'):
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        else:
+            # fallback to AF_INET if this is not unix
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             # Connect to portserver.
             sock.connect(portserver_address)
