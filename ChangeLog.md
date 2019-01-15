@@ -1,3 +1,10 @@
+## 1.3.0
+
+* Adds an optional `portserver_address` parameter to `pick_unused_port()` so
+  that callers can specify their own regardless of `os.environ`.
+* Fall back to `AF_INET` when `AF_UNIX` is not available to communicate with
+  a portserver.
+
 ## 1.2.0
 
 * Introduced `add_reserved_port()` and `return_port()` APIs to allow ports to
