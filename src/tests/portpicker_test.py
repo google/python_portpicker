@@ -70,6 +70,26 @@ class PickUnusedPortTest(unittest.TestCase):
 
     @unittest.skipIf('PORTSERVER_ADDRESS' not in os.environ,
                      'no port server to test against')
+    def testPickUnusedCanSuccessfullyUsePortServerAddressKwarg(self):
+
+        with mock.patch.object(portpicker, '_pick_unused_port_without_server'):
+            portpicker._pick_unused_port_without_server.side_effect = (
+                Exception('eek!')
+            )
+
+            # Since _PickUnusedPortWithoutServer() raises an exception, and
+            # we've temporarily removed PORTSERVER_ADDRESS from os.environ, if
+            # we can successfully obtain a port, the portserver must be working.
+            addr = os.environ.pop('PORTSERVER_ADDRESS')
+            try:
+                port = portpicker.pick_unused_port(portserver_address=addr)
+                self.assertTrue(self.IsUnusedTCPPort(port))
+                self.assertTrue(self.IsUnusedUDPPort(port))
+            finally:
+              os.environ['PORTSERVER_ADDRESS'] = addr
+
+    @unittest.skipIf('PORTSERVER_ADDRESS' not in os.environ,
+                     'no port server to test against')
     def testGetPortFromPortServer(self):
         """Exercise the get_port_from_port_server() helper function."""
         for _ in range(10):

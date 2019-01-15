@@ -133,13 +133,18 @@ def is_port_free(port):
 IsPortFree = is_port_free  # legacy API. pylint: disable=invalid-name
 
 
-def pick_unused_port(pid=None):
+def pick_unused_port(pid=None, portserver_address=None):
     """A pure python implementation of PickUnusedPort.
 
     Args:
       pid: PID to tell the portserver to associate the reservation with. If
-        None,
-        the current process's PID is used.
+        None, the current process's PID is used.
+      portserver_address: The address (path) of a unix domain socket
+        with which to connect to a portserver.  A leading '@'
+        character indicates an address in the "abstract namespace." If
+        None, or no port is returned by the portserver at the provided
+        address, the environment will be checked for a PORTSERVER_ADDRESS
+        variable. If that's not set, no port server will be used.
 
     Returns:
       A port number that is unused on both TCP and UDP.
@@ -149,6 +154,10 @@ def pick_unused_port(pid=None):
         _owned_ports.add(port)
         return port
     # Provide access to the portserver on an opt-in basis.
+    if portserver_address:
+        port = get_port_from_port_server(portserver_address, pid=pid)
+        if port:
+            return port
     if 'PORTSERVER_ADDRESS' in os.environ:
         port = get_port_from_port_server(os.environ['PORTSERVER_ADDRESS'],
                                          pid=pid)
