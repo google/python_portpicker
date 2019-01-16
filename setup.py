@@ -35,7 +35,7 @@ def main():
 
     setuptools.setup(
         name='portpicker',
-        version='1.2.0',
+        version='1.3.0',
         description='A library to choose unique available network ports.',
         long_description=textwrap.dedent("""\
           Portpicker provides an API to find and return an available network
