@@ -61,6 +61,11 @@ _owned_ports = set()
 _random_ports = set()
 
 
+class NoFreePortFoundException(Exception):
+    """Exception indicating that no free port could be found."""
+    pass
+
+
 def add_reserved_port(port):
     """Add a port that was acquired by means other than the port server."""
     _free_ports.add(port)
@@ -147,7 +152,10 @@ def pick_unused_port(pid=None, portserver_address=None):
         variable. If that's not set, no port server will be used.
 
     Returns:
-      A port number that is unused on both TCP and UDP. None on error.
+      A port number that is unused on both TCP and UDP.
+
+    Raises:
+      NoFreePortFoundException: No free port could be found.
     """
     if _free_ports:
         port = _free_ports.pop()
@@ -177,7 +185,10 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
     should not be called by code outside of this module.
 
     Returns:
-      A port number that is unused on both TCP and UDP.  None on error.
+      A port number that is unused on both TCP and UDP.
+
+    Raises:
+      NoFreePortFoundException: No free port could be found.
     """
     # Try random ports first.
     rng = random.Random()
@@ -199,7 +210,7 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
             return port
 
     # Give up.
-    return None
+    raise NoFreePortFoundException()
 
 
 def get_port_from_port_server(portserver_address, pid=None):
