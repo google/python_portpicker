@@ -201,10 +201,17 @@ class PickUnusedPortTest(unittest.TestCase):
                 return None
 
         with mock.patch.object(portpicker, 'bind', bind_with_error):
+            got_at_least_one_port = False
             for _ in range(100):
-                port = portpicker._pick_unused_port_without_server()
-                self.assertTrue(self.IsUnusedTCPPort(port))
-                self.assertTrue(self.IsUnusedUDPPort(port))
+                try:
+                    port = portpicker._pick_unused_port_without_server()
+                except portpicker.NoFreePortFoundException:
+                    continue
+                else:
+                    got_at_least_one_port = True
+                    self.assertTrue(self.IsUnusedTCPPort(port))
+                    self.assertTrue(self.IsUnusedUDPPort(port))
+            self.assertTrue(got_at_least_one_port)
 
     def testIsPortFree(self):
         """This might be flaky unless this test is run with a portserver."""

@@ -61,6 +61,11 @@ _owned_ports = set()
 _random_ports = set()
 
 
+class NoFreePortFoundException(Exception):
+    """Exception indicating that no free port could be found."""
+    pass
+
+
 def add_reserved_port(port):
     """Add a port that was acquired by means other than the port server."""
     _free_ports.add(port)
@@ -148,6 +153,9 @@ def pick_unused_port(pid=None, portserver_address=None):
 
     Returns:
       A port number that is unused on both TCP and UDP.
+
+    Raises:
+      NoFreePortFoundException: No free port could be found.
     """
     if _free_ports:
         port = _free_ports.pop()
@@ -177,7 +185,10 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
     should not be called by code outside of this module.
 
     Returns:
-      A port number that is unused on both TCP and UDP.  None on error.
+      A port number that is unused on both TCP and UDP.
+
+    Raises:
+      NoFreePortFoundException: No free port could be found.
     """
     # Try random ports first.
     rng = random.Random()
@@ -187,16 +198,19 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
             _random_ports.add(port)
             return port
 
-    # Try OS-assigned ports next.
+    # Next, try a few times to get an OS-assigned port.
     # Ambrose discovered that on the 2.6 kernel, calling Bind() on UDP socket
     # returns the same port over and over. So always try TCP first.
-    while True:
+    for _ in range(10):
         # Ask the OS for an unused port.
         port = bind(0, _PROTOS[0][0], _PROTOS[0][1])
         # Check if this port is unused on the other protocol.
         if port and bind(port, _PROTOS[1][0], _PROTOS[1][1]):
             _random_ports.add(port)
             return port
+
+    # Give up.
+    raise NoFreePortFoundException()
 
 
 def get_port_from_port_server(portserver_address, pid=None):
