@@ -61,7 +61,7 @@ _owned_ports = set()
 _random_ports = set()
 
 
-class NoFreePortFoundException(Exception):
+class NoFreePortFoundError(Exception):
     """Exception indicating that no free port could be found."""
     pass
 
@@ -145,17 +145,18 @@ def pick_unused_port(pid=None, portserver_address=None):
       pid: PID to tell the portserver to associate the reservation with. If
         None, the current process's PID is used.
       portserver_address: The address (path) of a unix domain socket
-        with which to connect to a portserver.  A leading '@'
-        character indicates an address in the "abstract namespace." If
-        None, or no port is returned by the portserver at the provided
+        with which to connect to a portserver, a leading '@'
+        character indicates an address in the "abstract namespace".  OR
+        On systems without socket.AF_UNIX, this is an AF_INET address.
+        If None, or no port is returned by the portserver at the provided
         address, the environment will be checked for a PORTSERVER_ADDRESS
-        variable. If that's not set, no port server will be used.
+        variable.  If that is not set, no port server will be used.
 
     Returns:
       A port number that is unused on both TCP and UDP.
 
     Raises:
-      NoFreePortFoundException: No free port could be found.
+      NoFreePortFoundError: No free port could be found.
     """
     if _free_ports:
         port = _free_ports.pop()
@@ -188,7 +189,7 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
       A port number that is unused on both TCP and UDP.
 
     Raises:
-      NoFreePortFoundException: No free port could be found.
+      NoFreePortFoundError: No free port could be found.
     """
     # Try random ports first.
     rng = random.Random()
@@ -210,7 +211,7 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
             return port
 
     # Give up.
-    raise NoFreePortFoundException()
+    raise NoFreePortFoundError()
 
 
 def get_port_from_port_server(portserver_address, pid=None):
@@ -227,6 +228,7 @@ def get_port_from_port_server(portserver_address, pid=None):
       portserver_address: The address (path) of a unix domain socket
         with which to connect to the portserver.  A leading '@'
         character indicates an address in the "abstract namespace."
+        On systems without socket.AF_UNIX, this is an AF_INET address.
       pid: The PID to tell the portserver to associate the reservation with.
         If None, the current process's PID is used.
 

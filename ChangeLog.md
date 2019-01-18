@@ -2,8 +2,10 @@
 
 * Adds an optional `portserver_address` parameter to `pick_unused_port()` so
   that callers can specify their own regardless of `os.environ`.
-* Fall back to `AF_INET` when `AF_UNIX` is not available to communicate with
-  a portserver.
+* `pick_unused_port()` now raises `NoFreePortFoundError` when no available port
+  could be found rather than spinning in a loop trying forever.
+* Fall back to `socket.AF_INET` when `socket.AF_UNIX` support is not available
+  to communicate with a portserver.
 
 ## 1.2.0
 

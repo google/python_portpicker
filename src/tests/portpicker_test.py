@@ -205,7 +205,7 @@ class PickUnusedPortTest(unittest.TestCase):
             for _ in range(100):
                 try:
                     port = portpicker._pick_unused_port_without_server()
-                except portpicker.NoFreePortFoundException:
+                except portpicker.NoFreePortFoundError:
                     continue
                 else:
                     got_at_least_one_port = True
