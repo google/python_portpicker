@@ -158,8 +158,11 @@ def pick_unused_port(pid=None, portserver_address=None):
     Raises:
       NoFreePortFoundError: No free port could be found.
     """
-    if _free_ports:
+    try:  # Instead of `if _free_ports:` to handle the race condition.
         port = _free_ports.pop()
+    except KeyError:
+        pass
+    else:
         _owned_ports.add(port)
         return port
     # Provide access to the portserver on an opt-in basis.
