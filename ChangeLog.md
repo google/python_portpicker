@@ -1,3 +1,7 @@
+## 1.3.1
+
+ * Fix a race condition in `pick_unused_port()` involving the free ports set.
+
 ## 1.3.0
 
 * Adds an optional `portserver_address` parameter to `pick_unused_port()` so
