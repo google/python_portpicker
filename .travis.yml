@@ -1,0 +1,4 @@
+language: python
+os: linux
+script:
+  - ./test.sh
