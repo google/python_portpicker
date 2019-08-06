@@ -17,6 +17,7 @@
 """Unittests for the portpicker module."""
 
 from __future__ import print_function
+import errno
 import os
 import random
 import socket
@@ -129,7 +130,12 @@ class PickUnusedPortTest(unittest.TestCase):
     def testDoesntReuseRandomPorts(self):
         ports = set()
         for _ in range(10):
-            port = portpicker.pick_unused_port()
+            try:
+                port = portpicker.pick_unused_port()
+            except portpicker.NoFreePortFoundError:
+                # This sometimes happens when not using portserver. Just
+                # skip to the next attempt.
+                continue
             ports.add(port)
             portpicker.return_port(port)
         self.assertGreater(len(ports), 5)  # Allow some random reuse.
@@ -164,10 +170,20 @@ class PickUnusedPortTest(unittest.TestCase):
         # will heavily exercise the "pick a port randomly" part of the
         # port picking code, but may never hit the "OS assigns a port"
         # code.
+        ports = 0
         for _ in range(100):
-            port = portpicker._pick_unused_port_without_server()
+            try:
+                port = portpicker._pick_unused_port_without_server()
+            except portpicker.NoFreePortFoundError:
+                # Without the portserver, pick_unused_port can sometimes fail
+                # to find a free port. Check that it passes most of the time.
+                continue
             self.assertTrue(self.IsUnusedTCPPort(port))
             self.assertTrue(self.IsUnusedUDPPort(port))
+            ports += 1
+        # Getting a port shouldn't have failed very often, even on machines
+        # with a heavy socket load.
+        self.assertGreater(ports, 95)
 
     def testOSAssignedPorts(self):
         self.last_assigned_port = None
@@ -184,36 +200,47 @@ class PickUnusedPortTest(unittest.TestCase):
                 return None
 
         with mock.patch.object(portpicker, 'bind', error_for_explicit_ports):
-            for _ in range(100):
-                port = portpicker._pick_unused_port_without_server()
-                self.assertTrue(self.IsUnusedTCPPort(port))
-                self.assertTrue(self.IsUnusedUDPPort(port))
-
-    def testPickPortsWithError(self):
-        r = random.Random()
-
-        def bind_with_error(port, socket_type, socket_proto):
-            # 95% failure rate means both port picking methods will be
-            # exercised.
-            if int(r.uniform(0, 20)) == 0:
-                return self._bind(port, socket_type, socket_proto)
-            else:
-                return None
-
-        with mock.patch.object(portpicker, 'bind', bind_with_error):
-            got_at_least_one_port = False
+            # Without server, this can be little flaky, so check that it
+            # passes most of the time.
+            ports = 0
             for _ in range(100):
                 try:
                     port = portpicker._pick_unused_port_without_server()
                 except portpicker.NoFreePortFoundError:
                     continue
-                else:
-                    got_at_least_one_port = True
-                    self.assertTrue(self.IsUnusedTCPPort(port))
-                    self.assertTrue(self.IsUnusedUDPPort(port))
-            self.assertTrue(got_at_least_one_port)
+                self.assertTrue(self.IsUnusedTCPPort(port))
+                self.assertTrue(self.IsUnusedUDPPort(port))
+                ports += 1
+            self.assertGreater(ports, 95)
 
-    def testIsPortFree(self):
+    def pickUnusedPortWithoutServer(self):
+        # Try a few times to pick a port, to avoid flakiness and to make sure
+        # the code path we want was exercised.
+        for _ in range(5):
+            try:
+                port = portpicker._pick_unused_port_without_server()
+            except portpicker.NoFreePortFoundError:
+                continue
+            else:
+                self.assertTrue(self.IsUnusedTCPPort(port))
+                self.assertTrue(self.IsUnusedUDPPort(port))
+                return
+        self.fail("Failed to find a free port")
+
+    def testPickPortsWithoutServer(self):
+        # Test the first part of _pick_unused_port_without_server, which
+        # tries a few random ports and checks is_port_free.
+        self.pickUnusedPortWithoutServer()
+
+        # Now test the second part, the fallback from above, which asks the
+        # OS for a port.
+        def mock_port_free(port):
+            return False
+
+        with mock.patch.object(portpicker, 'is_port_free', mock_port_free):
+            self.pickUnusedPortWithoutServer()
+
+    def checkIsPortFree(self):
         """This might be flaky unless this test is run with a portserver."""
         # The port should be free initially.
         port = portpicker.pick_unused_port()
@@ -248,7 +275,16 @@ class PickUnusedPortTest(unittest.TestCase):
                     print('Kernel does not support IPV6_V6ONLY=%d' % v6only,
                           file=sys.stderr)
                     # Don't care; just proceed with the default.
-            sock.bind(('', port))
+
+            # Socket may have been taken in the mean time, so catch the
+            # socket.error with errno set to EADDRINUSE and skip this
+            # attempt.
+            try:
+                sock.bind(('', port))
+            except socket.error as e:
+                if e.errno == errno.EADDRINUSE:
+                    raise portpicker.NoFreePortFoundError
+                raise
 
             # The port should be busy.
             self.assertFalse(portpicker.is_port_free(port))
@@ -256,6 +292,17 @@ class PickUnusedPortTest(unittest.TestCase):
 
             # Now it's free again.
             self.assertTrue(portpicker.is_port_free(port))
+
+    def testIsPortFree(self):
+        # This can be quite flaky on a busy host, so try a few times.
+        for _ in range(10):
+            try:
+                self.checkIsPortFree()
+            except portpicker.NoFreePortFoundError:
+                pass
+            else:
+                return
+        self.fail("checkPortIsFree failed every time.")
 
     def testIsPortFreeException(self):
         port = portpicker.pick_unused_port()
