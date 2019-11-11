@@ -31,7 +31,6 @@ import argparse
 import asyncio
 import collections
 import logging
-import os
 import signal
 import socket
 import sys
@@ -115,9 +114,7 @@ def _should_allocate_port(pid):
         # had been reparented to init.
         log.info('Not allocating a port to init.')
         return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
+    if not _get_process_start_time(pid):
         log.info('Not allocating a port to a non-existent process')
         return False
     return True
