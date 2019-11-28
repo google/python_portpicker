@@ -60,7 +60,7 @@ def _get_process_start_time(pid):
 
 # TODO: Consider importing portpicker.bind() instead of duplicating the code.
 def _bind(port, socket_type, socket_proto):
-    """Try to bind to a socket of the specified type, protocol, and port.
+    """Tries to bind to a socket of the specified type, protocol, and port.
 
     For the port to be considered available, the kernel must support at least
     one of (IPv6, IPv4), and the port must be available on each supported
@@ -95,10 +95,11 @@ def _bind(port, socket_type, socket_proto):
 
 
 def _is_port_free(port):
-    """Check if specified port is free.
+    """Checks if specified port is free.
 
     Args:
       port: integer, port to check
+
     Returns:
       boolean, whether it is free to use for both TCP and UDP
     """
@@ -106,7 +107,7 @@ def _is_port_free(port):
 
 
 def _should_allocate_port(pid):
-    """Determine if we should allocate a port for use by the given process id."""
+    """Determines if we should allocate a port for given process id."""
     if pid <= 0:
         log.info('Not allocating a port to invalid pid')
         return False
@@ -139,13 +140,21 @@ class _PortInfo(object):
         self.pid = 0
         self.start_time = 0
 
+    def is_still_reserved(self):
+        """Checks if port is still reserved by the original pid."""
+        if not self.start_time:
+            # Wasn't reserved yet.
+            return False
+        # Is it still the same start time? If it isn't, the pid was recycled.
+        return self.start_time == _get_process_start_time(self.pid)
+
 
 class _PortPool(object):
     """Manage available ports for processes.
 
     Ports are reclaimed when the reserving process exits and the reserved port
-    is no longer in use.  Only ports which are free for both TCP and UDP will be
-    handed out.  It is easier to not differentiate between protocols.
+    is no longer in use.  Only ports which are free for both TCP and UDP will
+    be handed out.  It is easier to not differentiate between protocols.
 
     The pool must be pre-seeded with add_port_to_free_pool() calls
     after which get_port_for_process() will allocate and reclaim ports.
@@ -166,7 +175,7 @@ class _PortPool(object):
         return len(self._port_queue)
 
     def get_port_for_process(self, pid):
-        """Allocates and returns port for pid or 0 if none could be allocated."""
+        """Allocates and returns port for pid or 0 if couldn't allocate."""
         if not self._port_queue:
             raise RuntimeError('No ports being managed.')
 
@@ -178,19 +187,19 @@ class _PortPool(object):
             candidate = self._port_queue.pop()
             self._port_queue.appendleft(candidate)
             check_count += 1
-            if (candidate.start_time == 0 or
-                candidate.start_time != _get_process_start_time(candidate.pid)):
-                if _is_port_free(candidate.port):
-                    candidate.pid = pid
-                    candidate.start_time = _get_process_start_time(pid)
-                    if not candidate.start_time:
-                        log.info("Can't read start time for pid %d.", pid)
-                    self.ports_checked_for_last_request = check_count
-                    return candidate.port
-                else:
-                    log.info(
-                        'Port %d unexpectedly in use, last owning pid %d.',
-                        candidate.port, candidate.pid)
+            if candidate.is_still_reserved():
+                continue
+            if _is_port_free(candidate.port):
+                candidate.pid = pid
+                candidate.start_time = _get_process_start_time(pid)
+                if not candidate.start_time:
+                    log.info("Can't read start time for pid %d.", pid)
+                self.ports_checked_for_last_request = check_count
+                return candidate.port
+            else:
+                log.info(
+                    'Port %d unexpectedly in use, last owning pid %d.',
+                    candidate.port, candidate.pid)
 
         log.info('All ports in use.')
         self.ports_checked_for_last_request = check_count
@@ -234,7 +243,7 @@ class _PortServerRequestHandler(object):
         writer.close()
 
     def _handle_port_request(self, client_data, writer):
-        """Given a port request body, parse it and respond appropriately.
+        """Given a port request body, parses it and responds appropriately.
 
         Args:
           client_data: The request bytes from the client.
@@ -269,7 +278,8 @@ class _PortServerRequestHandler(object):
         stats.append(
             'client-request-errors {}'.format(self._client_request_errors))
         stats.append('denied-allocations {}'.format(self._denied_allocations))
-        stats.append('num-ports-managed {}'.format(self._port_pool.num_ports()))
+        stats.append('num-ports-managed {}'.format(
+            self._port_pool.num_ports()))
         stats.append('num-ports-checked-for-last-request {}'.format(
             self._port_pool.ports_checked_for_last_request))
         stats.append('total-allocations {}'.format(self._total_allocations))
@@ -278,7 +288,7 @@ class _PortServerRequestHandler(object):
 
 
 def _parse_command_line():
-    """Configure and parse our command line flags."""
+    """Configures and parses our command line flags."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--portserver_static_pool',
@@ -289,7 +299,8 @@ def _parse_command_line():
         '--portserver_unix_socket_address',
         type=str,
         default='@unittest-portserver',
-        help='Address of AF_UNIX socket on which to listen (first @ is a NUL).')
+        help=('Address of AF_UNIX socket on which to listen'
+              ' (first @ is a NUL).'))
     parser.add_argument('--verbose',
                         action='store_true',
                         default=False,
@@ -302,7 +313,7 @@ def _parse_command_line():
 
 
 def _parse_port_ranges(pool_str):
-    """Given a 'N-P,X-Y' description of port ranges, return a set of ints."""
+    """Given a 'N-P,X-Y' description of port ranges, returns a set of ints."""
     ports = set()
     for range_str in pool_str.split(','):
         try:
@@ -319,7 +330,7 @@ def _parse_port_ranges(pool_str):
 
 
 def _configure_logging(verbose=False, debug=False):
-    """Configure the log global, message format, and verbosity settings."""
+    """Configures the log global, message format, and verbosity settings."""
     overall_level = logging.DEBUG if debug else logging.INFO
     logging.basicConfig(
         format=('{levelname[0]}{asctime}.{msecs:03.0f} {thread} '
@@ -337,12 +348,14 @@ def _configure_logging(verbose=False, debug=False):
 def main():
     config = _parse_command_line()
     if config.debug:
-        # Equivalent of PYTHONASYNCIODEBUG=1 in 3.4; pylint: disable=protected-access
+        # Equivalent of PYTHONASYNCIODEBUG=1 in 3.4;
+        # pylint: disable=protected-access
         asyncio.tasks._DEBUG = True
     _configure_logging(verbose=config.verbose, debug=config.debug)
     ports_to_serve = _parse_port_ranges(config.portserver_static_pool)
     if not ports_to_serve:
-        log.error('No ports.  Invalid port ranges in --portserver_static_pool?')
+        log.error('No ports.'
+                  '  Invalid port ranges in --portserver_static_pool?')
         sys.exit(1)
 
     request_handler = _PortServerRequestHandler(ports_to_serve)
