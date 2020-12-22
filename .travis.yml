@@ -1,5 +1,8 @@
 language: python
 os: linux
+arch:
+  - amd64
+  - ppc64le
 dist: xenial
 script:
   - ./test.sh
