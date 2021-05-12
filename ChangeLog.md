@@ -1,3 +1,8 @@
+## 1.4.0
+
+*   Use `async def` instead of `@asyncio.coroutine` in order to support 3.10.
+*   Declare a minimum Python version of 3.6 in the package config.
+
 ## 1.3.9
 
 *   No portpicker or portserver code changes
