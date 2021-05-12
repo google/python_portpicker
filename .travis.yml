@@ -1,6 +1,5 @@
 language: python
 python:
-  - "2.7"
   - "3.6"
   - "3.7"
   - "3.8"
@@ -15,4 +14,4 @@ install:
   - pip install --upgrade .
 script:
   - python src/tests/portpicker_test.py
-  - if python -c 'import sys; sys.exit(sys.version_info.major<=2)' ; then PYTHONPATH=src python src/tests/portserver_test.py ; fi
+  - PYTHONPATH=src python src/tests/portserver_test.py
