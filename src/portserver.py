@@ -227,9 +227,8 @@ class _PortServerRequestHandler(object):
         for port in ports_to_serve:
             self._port_pool.add_port_to_free_pool(port)
 
-    @asyncio.coroutine
-    def handle_port_request(self, reader, writer):
-        client_data = yield from reader.read(100)
+    async def handle_port_request(self, reader, writer):
+        client_data = await reader.read(100)
         self._handle_port_request(client_data, writer)
         writer.close()
 

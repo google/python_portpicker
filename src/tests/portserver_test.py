@@ -143,8 +143,7 @@ class PortserverFunctionsTest(unittest.TestCase):
         # Give it at least one port and try again.
         portserver._parse_port_ranges.return_value = {self.port}
 
-        @asyncio.coroutine
-        def mock_coroutine_template(*args, **kwargs):
+        async def mock_coroutine_template(*args, **kwargs):
             return mock.Mock()
 
         mock_start_unix_server = mock.Mock(wraps=mock_coroutine_template)
