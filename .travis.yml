@@ -10,8 +10,7 @@ arch:
   - ppc64le
 dist: focal
 install:
-  - pip install mock
-  - pip install --upgrade .
+  - pip install --upgrade pip
+  - pip install pytest
 script:
-  - python src/tests/portpicker_test.py
-  - PYTHONPATH=src python src/tests/portserver_test.py
+  - py.test
