@@ -143,13 +143,7 @@ class PortserverFunctionsTest(unittest.TestCase):
         # Give it at least one port and try again.
         portserver._parse_port_ranges.return_value = {self.port}
 
-        async def mock_coroutine_template(*args, **kwargs):
-            return mock.Mock()
-
-        mock_start_unix_server = mock.Mock(wraps=mock_coroutine_template)
-
-        with mock.patch.object(asyncio, 'start_unix_server',
-                               mock_start_unix_server):
+        with mock.patch.object(asyncio, 'start_unix_server'):
             mock_event_loop = mock.Mock(spec=asyncio.base_events.BaseEventLoop)
             asyncio.get_event_loop.return_value = mock_event_loop
             mock_event_loop.run_forever.side_effect = KeyboardInterrupt
