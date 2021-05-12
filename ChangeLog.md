@@ -1,4 +1,4 @@
-## 1.4.0
+## 1.3.9
 
 *   No portpicker or portserver code changes
 *   Fixed the portserver test on recent Python 3.x versions.
