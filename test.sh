@@ -14,7 +14,7 @@ PYTHONPATH=src build/test_envs/python3/bin/python3 src/tests/portserver_test.py
 if which python2.7 >/dev/null ; then
 echo 'TESTING under Python 2.7'
 mkdir -p build/test_envs/python2
-  python2.7 -m venv build/test_envs/python2
+  virtualenv --python=python2.7 build/test_envs/python2
   build/test_envs/python2/bin/pip install mock
   build/test_envs/python2/bin/pip install --upgrade .
   build/test_envs/python2/bin/python2 src/tests/portpicker_test.py
