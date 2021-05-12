@@ -3,6 +3,6 @@ os: linux
 arch:
   - amd64
   - ppc64le
-dist: xenial
+dist: focal
 script:
   - ./test.sh
