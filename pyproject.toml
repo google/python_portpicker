@@ -14,10 +14,8 @@ minversion = 3.3.0
 deps =
     check-manifest >= 0.42
     pytest
-    pytype
 commands =
     check-manifest --ignore 'src/tests/**'
     python -c 'from setuptools import setup; setup()' check -m -s
-    pytype src/*.py
     py.test {posargs}
 """
