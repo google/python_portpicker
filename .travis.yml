@@ -11,5 +11,9 @@ arch:
   - amd64
   - ppc64le
 dist: focal
+install:
+  - pip install mock
+  - pip install --upgrade .
 script:
-  - ./test.sh
+  - python src/tests/portpicker_test.py
+  - python -c 'import sys; sys.exit(sys.version_info.major<=2)' && PYTHONPATH=src python src/tests/portserver_test.py
