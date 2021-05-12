@@ -134,8 +134,7 @@ class PortserverFunctionsTest(unittest.TestCase):
                       '--portserver_unix_socket_address=@TST-%d' % os.getpid()]
     )
     @mock.patch.object(portserver, '_parse_port_ranges')
-    @mock.patch('asyncio.get_event_loop')
-    @mock.patch('asyncio.start_unix_server')
+    @mock.patch.object(asyncio, 'get_event_loop')
     def test_main(self, *unused_mocks):
         portserver._parse_port_ranges.return_value = set()
         with self.assertRaises(SystemExit):
@@ -144,17 +143,24 @@ class PortserverFunctionsTest(unittest.TestCase):
         # Give it at least one port and try again.
         portserver._parse_port_ranges.return_value = {self.port}
 
-        mock_event_loop = mock.Mock(spec=asyncio.base_events.BaseEventLoop)
-        asyncio.get_event_loop.return_value = mock_event_loop
-        asyncio.start_unix_server.return_value = mock.Mock()
-        mock_event_loop.run_forever.side_effect = KeyboardInterrupt
+        @asyncio.coroutine
+        def mock_coroutine_template(*args, **kwargs):
+            return mock.Mock()
 
-        portserver.main()
+        mock_start_unix_server = mock.Mock(wraps=mock_coroutine_template)
 
-        mock_event_loop.run_until_complete.assert_any_call(
-            asyncio.start_unix_server.return_value)
-        mock_event_loop.close.assert_called_once_with()
-        # NOTE: This could be improved.  Tests of main() are often gross.
+        with mock.patch.object(asyncio, 'start_unix_server',
+                               mock_start_unix_server):
+            mock_event_loop = mock.Mock(spec=asyncio.base_events.BaseEventLoop)
+            asyncio.get_event_loop.return_value = mock_event_loop
+            mock_event_loop.run_forever.side_effect = KeyboardInterrupt
+
+            portserver.main()
+
+            mock_event_loop.run_until_complete.assert_any_call(
+                    mock.ANY)
+            mock_event_loop.close.assert_called_once_with()
+            # NOTE: This could be improved.  Tests of main() are often gross.
 
 
 class PortPoolTest(unittest.TestCase):

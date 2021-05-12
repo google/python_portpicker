@@ -42,7 +42,7 @@ def main():
           port for an application to bind to.  Ideally suited for use from
           unittests or for test harnesses that launch local servers."""),
         license='Apache 2.0',
-        maintainer='Google',
+        maintainer='Google LLC',
         maintainer_email='greg@krypto.org',
         url='https://github.com/google/python_portpicker',
         package_dir={'': 'src'},
@@ -61,6 +61,9 @@ def main():
          'Programming Language :: Python :: 3.4',
          'Programming Language :: Python :: 3.5',
          'Programming Language :: Python :: 3.6',
+         'Programming Language :: Python :: 3.7',
+         'Programming Language :: Python :: 3.8',
+         'Programming Language :: Python :: 3.9',
          'Programming Language :: Python :: Implementation :: CPython',
          'Programming Language :: Python :: Implementation :: Jython',
          'Programming Language :: Python :: Implementation :: PyPy'])
