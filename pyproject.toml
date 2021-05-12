@@ -17,7 +17,5 @@ deps =
 commands =
     check-manifest --ignore 'src/tests/**'
     python -c 'from setuptools import setup; setup()' check -m -s
-    pip install --upgrade build
-    python -m build
-    py.test {posargs}
+    py.test -s {posargs}
 """
