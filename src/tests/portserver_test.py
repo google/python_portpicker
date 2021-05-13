@@ -16,11 +16,13 @@
 #
 """Tests for the example portserver."""
 
-from __future__ import print_function
 import asyncio
 import os
+import signal
 import socket
+import subprocess
 import sys
+import time
 import unittest
 from unittest import mock
 
@@ -129,31 +131,98 @@ class PortserverFunctionsTest(unittest.TestCase):
         portserver._configure_logging(False)
         portserver._configure_logging(True)
 
+
+    _test_socket_addr = f'@TST-{os.getpid}'
+
     @mock.patch.object(
         sys, 'argv', ['PortserverFunctionsTest.test_main',
-                      '--portserver_unix_socket_address=@TST-%d' % os.getpid()]
+                      f'--portserver_unix_socket_address={_test_socket_addr}']
     )
     @mock.patch.object(portserver, '_parse_port_ranges')
-    @mock.patch.object(asyncio, 'get_event_loop')
-    def test_main(self, *unused_mocks):
+##    @mock.patch.object(asyncio, 'get_event_loop')
+    def test_main_no_ports(self, *unused_mocks):
         portserver._parse_port_ranges.return_value = set()
         with self.assertRaises(SystemExit):
             portserver.main()
 
-        # Give it at least one port and try again.
-        portserver._parse_port_ranges.return_value = {self.port}
+    @unittest.skipUnless(sys.executable, 'Requires a stand alone interpreter')
+    @unittest.skipUnless(hasattr(socket, 'AF_UNIX'), 'AF_UNIX required')
+    def test_portserver_binary(self):
+        """Launch python portserver.py and test it."""
+        # Blindly assuming tree layout is src/tests/portserver_test.py
+        # with src/portserver.py.
+        portserver_py = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                'portserver.py')
+        anon_addr = self._test_socket_addr.replace('@', '\0')
 
-        with mock.patch.object(asyncio, 'start_unix_server'):
-            mock_event_loop = mock.Mock(spec=asyncio.base_events.BaseEventLoop)
-            asyncio.get_event_loop.return_value = mock_event_loop
-            mock_event_loop.run_forever.side_effect = KeyboardInterrupt
+        conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        with self.assertRaises(
+                ConnectionRefusedError,
+                msg=f'{self._test_socket_addr} should not listen yet.'):
+            conn.connect(anon_addr)
+            conn.close()
 
-            portserver.main()
+        server = subprocess.Popen(
+            [sys.executable, portserver_py,
+             f'--portserver_unix_socket_address={self._test_socket_addr}'],
+            stderr=subprocess.PIPE,
+        )
+        try:
+            # Wait a few seconds for the server to start listening.
+            start_time = time.monotonic()
+            while True:
+                time.sleep(0.05)
+                try:
+                    conn.connect(anon_addr)
+                    conn.close()
+                except ConnectionRefusedError:
+                    delta = time.monotonic() - start_time
+                    if delta < 4:
+                        continue
+                    else:
+                        self.fail('Failed to connect to portserver '
+                                  f'{self._test_socket_addr} within '
+                                  '{delta} seconds.')
+                else:
+                    break
 
-            mock_event_loop.run_until_complete.assert_any_call(
-                    mock.ANY)
-            mock_event_loop.close.assert_called_once_with()
-            # NOTE: This could be improved.  Tests of main() are often gross.
+            ports = set()
+            port = portpicker.get_port_from_port_server(
+                    portserver_address=self._test_socket_addr)
+            ports.add(port)
+            port = portpicker.get_port_from_port_server(
+                    portserver_address=self._test_socket_addr)
+            ports.add(port)
+
+            # This process doesn't exist so it should be a denied alloc.
+            denied_port = portpicker.get_port_from_port_server(
+                    portserver_address=self._test_socket_addr,
+                    pid=999999999999999999999999999)  # fake pid
+            self.assertIsNone(denied_port)
+
+            self.assertEqual(len(ports), 2, msg=ports)
+
+            # Check statistics from portserver
+            server.send_signal(signal.SIGUSR1)
+            # TODO implement an I/O timeout
+            for line in server.stderr:
+                if b'denied-allocations ' in line:
+                    denied_allocations = int(
+                            line.split(b'denied-allocations ', 2)[1])
+                    self.assertEqual(1, denied_allocations)
+                elif b'total-allocations ' in line:
+                    total_allocations = int(
+                            line.split(b'total-allocations ', 2)[1])
+                    self.assertEqual(2, total_allocations)
+                    break
+
+            # Done.  shutdown gracefully.
+            server.send_signal(signal.SIGINT)
+            server.communicate(timeout=2)
+        finally:
+            server.kill()
+            server.wait()
 
 
 class PortPoolTest(unittest.TestCase):
