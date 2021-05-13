@@ -6,3 +6,4 @@ include CONTRIBUTING.md
 include ChangeLog.md
 include setup.py
 include test.sh
+exclude package.sh
