@@ -117,7 +117,7 @@ def _should_allocate_port(pid):
         return False
     try:
         os.kill(pid, 0)
-    except ProcessLookupError:
+    except (ProcessLookupError, OverflowError):
         log.info('Not allocating a port to a non-existent process')
         return False
     return True
@@ -240,6 +240,8 @@ class _PortServerRequestHandler(object):
           writer: The asyncio Writer for the response to be written to.
         """
         try:
+            if len(client_data) > 20:
+                raise ValueError('More than 20 characters in "pid".')
             pid = int(client_data)
         except ValueError as error:
             self._client_request_errors += 1
