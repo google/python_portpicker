@@ -1,7 +1,7 @@
 # Python portpicker module
 
 [![PyPI version](https://badge.fury.io/py/portpicker.svg)](https://badge.fury.io/py/portpicker)
-![GH Action Status](https://github.com/github/docs/actions/workflows/main.yml/badge.svg)
+![GH Action Status](https://github.com/google/python_portpicker/actions/workflows/main.yml/badge.svg)
 [![Travis CI org Status](https://travis-ci.org/google/python_portpicker.svg?branch=master)](https://travis-ci.org/google/python_portpicker)
 
 This module is useful for finding unused network ports on a host. If you need
