@@ -4,9 +4,9 @@ python:
   - "3.7"
   - "3.8"
   - "3.9"
+  - "3.10-dev"
 os: linux
 arch:
-  - amd64
   - ppc64le
 dist: focal
 install:

@@ -117,7 +117,7 @@ def _should_allocate_port(pid):
         return False
     try:
         os.kill(pid, 0)
-    except ProcessLookupError:
+    except (ProcessLookupError, OverflowError):
         log.info('Not allocating a port to a non-existent process')
         return False
     return True
@@ -227,9 +227,8 @@ class _PortServerRequestHandler(object):
         for port in ports_to_serve:
             self._port_pool.add_port_to_free_pool(port)
 
-    @asyncio.coroutine
-    def handle_port_request(self, reader, writer):
-        client_data = yield from reader.read(100)
+    async def handle_port_request(self, reader, writer):
+        client_data = await reader.read(100)
         self._handle_port_request(client_data, writer)
         writer.close()
 
@@ -241,6 +240,8 @@ class _PortServerRequestHandler(object):
           writer: The asyncio Writer for the response to be written to.
         """
         try:
+            if len(client_data) > 20:
+                raise ValueError('More than 20 characters in "pid".')
             pid = int(client_data)
         except ValueError as error:
             self._client_request_errors += 1
@@ -349,10 +350,11 @@ def main():
 
     event_loop = asyncio.get_event_loop()
     event_loop.add_signal_handler(signal.SIGUSR1, request_handler.dump_stats)
+    old_py_loop = {'loop': event_loop} if sys.version_info < (3, 10) else {}
     coro = asyncio.start_unix_server(
         request_handler.handle_port_request,
         path=config.portserver_unix_socket_address.replace('@', '\0', 1),
-        loop=event_loop)
+        **old_py_loop)
     server_address = config.portserver_unix_socket_address
 
     server = event_loop.run_until_complete(coro)

@@ -1,3 +1,11 @@
+## 1.4.0
+
+*   Use `async def` instead of `@asyncio.coroutine` in order to support 3.10.
+*   The portserver now checks for and rejects pid values that are out of range.
+*   Declare a minimum Python version of 3.6 in the package config.
+*   Rework `portserver_test.py` to launch an actual portserver process instead
+    of mocks.
+
 ## 1.3.9
 
 *   No portpicker or portserver code changes
