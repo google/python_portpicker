@@ -132,7 +132,7 @@ class PortserverFunctionsTest(unittest.TestCase):
         portserver._configure_logging(True)
 
 
-    _test_socket_addr = f'@TST-{os.getpid}'
+    _test_socket_addr = f'@TST-{os.getpid()}'
 
     @mock.patch.object(
         sys, 'argv', ['PortserverFunctionsTest.test_main',
@@ -180,9 +180,11 @@ class PortserverFunctionsTest(unittest.TestCase):
                     if delta < 4:
                         continue
                     else:
+                        server.kill()
                         self.fail('Failed to connect to portserver '
                                   f'{self._test_socket_addr} within '
-                                  '{delta} seconds.')
+                                  '{delta} seconds.',
+                                  msg=server.stderr.read())
                 else:
                     break
 
