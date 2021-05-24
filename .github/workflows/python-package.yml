@@ -28,7 +28,7 @@ jobs:
       - name: Lint with pylint
         run: |
           # Stop the build if there are lint errors
-          pylint .
+          pylint src/*.py src/tests/*.py
       - name: Test with tox
         run: |
           # Run tox using the version of Python in `PATH`
