@@ -184,7 +184,7 @@ class PortserverFunctionsTest(unittest.TestCase):
                         self.fail('Failed to connect to portserver '
                                   f'{self._test_socket_addr} within '
                                   '{delta} seconds:\n' +
-                                  server.stderr.read())
+                                  server.stderr.read().decode('utf-8'))
                 else:
                     break
 
