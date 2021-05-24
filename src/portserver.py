@@ -350,10 +350,11 @@ def main():
 
     event_loop = asyncio.get_event_loop()
     event_loop.add_signal_handler(signal.SIGUSR1, request_handler.dump_stats)
+    old_py_loop = {'loop': event_loop} if sys.version_info < (3, 10) else {}
     coro = asyncio.start_unix_server(
         request_handler.handle_port_request,
         path=config.portserver_unix_socket_address.replace('@', '\0', 1),
-        loop=event_loop)
+        **old_py_loop)
     server_address = config.portserver_unix_socket_address
 
     server = event_loop.run_until_complete(coro)
