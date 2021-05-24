@@ -183,7 +183,7 @@ class PortserverFunctionsTest(unittest.TestCase):
                         server.kill()
                         self.fail('Failed to connect to portserver '
                                   f'{self._test_socket_addr} within '
-                                  '{delta} seconds.',
+                                  '{delta} seconds:\n' +
                                   msg=server.stderr.read())
                 else:
                     break
