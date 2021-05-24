@@ -139,7 +139,6 @@ class PortserverFunctionsTest(unittest.TestCase):
                       f'--portserver_unix_socket_address={_test_socket_addr}']
     )
     @mock.patch.object(portserver, '_parse_port_ranges')
-##    @mock.patch.object(asyncio, 'get_event_loop')
     def test_main_no_ports(self, *unused_mocks):
         portserver._parse_port_ranges.return_value = set()
         with self.assertRaises(SystemExit):
