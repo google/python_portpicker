@@ -195,10 +195,14 @@ class PortserverFunctionsTest(unittest.TestCase):
                     portserver_address=self._test_socket_addr)
             ports.add(port)
 
+            with subprocess.Popen('exit 0', shell=True) as quick_process:
+                quick_process.wait()
             # This process doesn't exist so it should be a denied alloc.
+            # We use the pid from the above quick_process under the assumption
+            # that most OSes try to avoid rapid pid recycling.
             denied_port = portpicker.get_port_from_port_server(
                     portserver_address=self._test_socket_addr,
-                    pid=999999999999999999999999999)  # fake pid
+                    pid=quick_process.pid)  # A now unused pid.
             self.assertIsNone(denied_port)
 
             self.assertEqual(len(ports), 2, msg=ports)
@@ -210,12 +214,17 @@ class PortserverFunctionsTest(unittest.TestCase):
                 if b'denied-allocations ' in line:
                     denied_allocations = int(
                             line.split(b'denied-allocations ', 2)[1])
-                    self.assertEqual(1, denied_allocations)
+                    self.assertEqual(1, denied_allocations, msg=line)
                 elif b'total-allocations ' in line:
                     total_allocations = int(
                             line.split(b'total-allocations ', 2)[1])
-                    self.assertEqual(2, total_allocations)
+                    self.assertEqual(2, total_allocations, msg=line)
                     break
+
+            rejected_port = portpicker.get_port_from_port_server(
+                    portserver_address=self._test_socket_addr,
+                    pid=99999999999999999999999999999999999)  # Out of range.
+            self.assertIsNone(rejected_port)
 
             # Done.  shutdown gracefully.
             server.send_signal(signal.SIGINT)
