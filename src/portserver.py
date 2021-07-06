@@ -300,15 +300,13 @@ def _parse_command_line():
         default='15000-24999',
         help='Comma separated N-P Range(s) of ports to manage (inclusive).')
     parser.add_argument(
-        '--portserver_unix_socket_address',
+        '--portserver_address',
+        '--portserver_unix_socket_address', # Alias to be backward compatible
         type=str,
         default='@unittest-portserver',
-        help='Address of AF_UNIX socket on which to listen (first @ is a NUL).')
-    parser.add_argument(
-        '--portserver_windows_pipe_address',
-        type=str,
-        default='unittest-portserver',
-        help='Address of the Windows named pipe on which to listen.')
+        help='Address of AF_UNIX socket on which to listen on Unix (first @ is '
+             'a NUL) or the name of the pipe on Windows (first @ is the '
+             '\\\\.\\pipe\\ prefix).')
     parser.add_argument('--verbose',
                         action='store_true',
                         default=False,
@@ -381,9 +379,7 @@ def main():
 
         coro = _start_windows_server(
             request_handler.handle_port_request,
-            path='\\\\.\\pipe\\' + config.portserver_windows_pipe_address)
-
-        server_address = config.portserver_windows_pipe_address
+            path=config.portserver_address.replace('@', '\\\\.\\pipe\\', 1))
     else:
         event_loop.add_signal_handler(
             signal.SIGUSR1, request_handler.dump_stats) # pylint: disable=no-member
@@ -391,10 +387,10 @@ def main():
         old_py_loop = {'loop': event_loop} if sys.version_info < (3, 10) else {}
         coro = asyncio.start_unix_server(
             request_handler.handle_port_request,
-            path=config.portserver_unix_socket_address.replace('@', '\0', 1),
+            path=config.portserver_address.replace('@', '\0', 1),
             **old_py_loop)
 
-        server_address = config.portserver_unix_socket_address
+    server_address = config.portserver_address
 
     server = event_loop.run_until_complete(coro)
     log.info('Serving on %s', server_address)

@@ -253,9 +253,12 @@ def _get_linux_port_from_port_server(portserver_address, pid):
 
 
 def _get_windows_port_from_port_server(portserver_address, pid):
+    if portserver_address[0] == '@':
+        portserver_address = '\\\\.\\pipe\\' + portserver_address[1:]
+
     try:
         handle = _winapi.CreateFile(
-            "\\\\.\\pipe\\" + portserver_address,
+            portserver_address,
             _winapi.GENERIC_READ | _winapi.GENERIC_WRITE,
             0,
             0,
