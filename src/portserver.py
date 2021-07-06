@@ -31,10 +31,10 @@ import argparse
 import asyncio
 import collections
 import logging
-import os
 import signal
 import socket
 import sys
+import psutil
 
 log = None  # Initialized to a logging.Logger by _configure_logging().
 
@@ -115,12 +115,25 @@ def _should_allocate_port(pid):
         # had been reparented to init.
         log.info('Not allocating a port to init.')
         return False
-    try:
-        os.kill(pid, 0)
-    except (ProcessLookupError, OverflowError):
+
+    if not psutil.pid_exists(pid):
         log.info('Not allocating a port to a non-existent process')
         return False
     return True
+
+
+async def _start_windows_server(client_connected_cb, path):
+    """Start the server on Windows using named pipes."""
+    def protocol_factory():
+        stream_reader = asyncio.StreamReader()
+        stream_reader_protocol = asyncio.StreamReaderProtocol(
+            stream_reader, client_connected_cb)
+        return stream_reader_protocol
+
+    loop = asyncio.get_event_loop()
+    server, *_ = await loop.start_serving_pipe(protocol_factory, address=path)
+
+    return server
 
 
 class _PortInfo(object):
@@ -291,6 +304,11 @@ def _parse_command_line():
         type=str,
         default='@unittest-portserver',
         help='Address of AF_UNIX socket on which to listen (first @ is a NUL).')
+    parser.add_argument(
+        '--portserver_windows_pipe_address',
+        type=str,
+        default='unittest-portserver',
+        help='Address of the Windows named pipe on which to listen.')
     parser.add_argument('--verbose',
                         action='store_true',
                         default=False,
@@ -348,14 +366,35 @@ def main():
 
     request_handler = _PortServerRequestHandler(ports_to_serve)
 
+    if sys.platform == 'win32':
+        asyncio.set_event_loop(asyncio.ProactorEventLoop())
+
     event_loop = asyncio.get_event_loop()
-    event_loop.add_signal_handler(signal.SIGUSR1, request_handler.dump_stats)
-    old_py_loop = {'loop': event_loop} if sys.version_info < (3, 10) else {}
-    coro = asyncio.start_unix_server(
-        request_handler.handle_port_request,
-        path=config.portserver_unix_socket_address.replace('@', '\0', 1),
-        **old_py_loop)
-    server_address = config.portserver_unix_socket_address
+
+    if sys.platform == 'win32':
+        # On Windows, we need to periodically pause the loop to allow the user
+        # to send a break signal (e.g. ctrl+c)
+        def listen_for_signal():
+            event_loop.call_later(0.5, listen_for_signal)
+
+        event_loop.call_later(0.5, listen_for_signal)
+
+        coro = _start_windows_server(
+            request_handler.handle_port_request,
+            path='\\\\.\\pipe\\' + config.portserver_windows_pipe_address)
+
+        server_address = config.portserver_windows_pipe_address
+    else:
+        event_loop.add_signal_handler(
+            signal.SIGUSR1, request_handler.dump_stats)
+
+        old_py_loop = {'loop': event_loop} if sys.version_info < (3, 10) else {}
+        coro = asyncio.start_unix_server(
+            request_handler.handle_port_request,
+            path=config.portserver_unix_socket_address.replace('@', '\0', 1),
+            **old_py_loop)
+
+        server_address = config.portserver_unix_socket_address
 
     server = event_loop.run_until_complete(coro)
     log.info('Serving on %s', server_address)
@@ -365,8 +404,11 @@ def main():
         log.info('Stopping due to ^C.')
 
     server.close()
-    event_loop.run_until_complete(server.wait_closed())
-    event_loop.remove_signal_handler(signal.SIGUSR1)
+
+    if sys.platform != 'win32':
+        event_loop.run_until_complete(server.wait_closed())
+        event_loop.remove_signal_handler(signal.SIGUSR1)
+
     event_loop.close()
     request_handler.dump_stats()
     log.info('Goodbye.')

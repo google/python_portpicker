@@ -217,38 +217,13 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
     raise NoFreePortFoundError()
 
 
-def get_port_from_port_server(portserver_address, pid=None):
-    """Request a free a port from a system-wide portserver.
-
-    This follows a very simple portserver protocol:
-    The request consists of our pid (in ASCII) followed by a newline.
-    The response is a port number and a newline, 0 on failure.
-
-    This function is an implementation detail of pick_unused_port().
-    It should not normally be called by code outside of this module.
-
-    Args:
-      portserver_address: The address (path) of a unix domain socket
-        with which to connect to the portserver.  A leading '@'
-        character indicates an address in the "abstract namespace."
-        On systems without socket.AF_UNIX, this is an AF_INET address.
-      pid: The PID to tell the portserver to associate the reservation with.
-        If None, the current process's PID is used.
-
-    Returns:
-      The port number on success or None on failure.
-    """
-    if not portserver_address:
-        return None
+def _get_linux_port_from_port_server(portserver_address, pid):
     # An AF_UNIX address may start with a zero byte, in which case it is in the
     # "abstract namespace", and doesn't have any filesystem representation.
     # See 'man 7 unix' for details.
     # The convention is to write '@' in the address to represent this zero byte.
     if portserver_address[0] == '@':
         portserver_address = '\0' + portserver_address[1:]
-
-    if pid is None:
-        pid = os.getpid()
 
     try:
         # Create socket.
@@ -272,6 +247,63 @@ def get_port_from_port_server(portserver_address, pid=None):
     except socket.error as e:
         print('Socket error when connecting to portserver:', e,
               file=sys.stderr)
+        return None
+
+
+def _get_windows_port_from_port_server(portserver_address, pid):
+    import _winapi
+
+    try:
+        handle = _winapi.CreateFile(
+            "\\\\.\\pipe\\" + portserver_address,
+            _winapi.GENERIC_READ | _winapi.GENERIC_WRITE,
+            0,
+            0,
+            _winapi.OPEN_EXISTING,
+            0,
+            0)
+
+        _winapi.WriteFile(handle, str(os.getpid()).encode('utf-8'))
+        data, _ = _winapi.ReadFile(handle, 6, 0)
+        return data
+    except FileNotFoundError as e:
+        print('File error when connecting to portserver:', e,
+              file=sys.stderr)
+        return None
+
+def get_port_from_port_server(portserver_address, pid=None):
+    """Request a free a port from a system-wide portserver.
+
+    This follows a very simple portserver protocol:
+    The request consists of our pid (in ASCII) followed by a newline.
+    The response is a port number and a newline, 0 on failure.
+
+    This function is an implementation detail of pick_unused_port().
+    It should not normally be called by code outside of this module.
+
+    Args:
+      portserver_address: The address (path) of a unix domain socket
+        with which to connect to the portserver.  A leading '@'
+        character indicates an address in the "abstract namespace."
+        On systems without socket.AF_UNIX, this is an AF_INET address.
+      pid: The PID to tell the portserver to associate the reservation with.
+        If None, the current process's PID is used.
+
+    Returns:
+      The port number on success or None on failure.
+    """
+    if not portserver_address:
+        return None
+
+    if pid is None:
+        pid = os.getpid()
+
+    if sys.platform == 'win32':
+        buf = _get_windows_port_from_port_server(portserver_address, pid)
+    else:
+        buf = _get_linux_port_from_port_server(portserver_address, pid)
+
+    if buf is None:
         return None
 
     try:
