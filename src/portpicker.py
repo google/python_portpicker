@@ -43,6 +43,9 @@ import random
 import socket
 import sys
 
+if sys.platform == 'win32':
+    import _winapi
+
 # The legacy Bind, IsPortFree, etc. names are not exported.
 __all__ = ('bind', 'is_port_free', 'pick_unused_port', 'return_port',
            'add_reserved_port', 'get_port_from_port_server')
@@ -63,7 +66,6 @@ _random_ports = set()
 
 class NoFreePortFoundError(Exception):
     """Exception indicating that no free port could be found."""
-    pass
 
 
 def add_reserved_port(port):
@@ -228,7 +230,7 @@ def _get_linux_port_from_port_server(portserver_address, pid):
     try:
         # Create socket.
         if hasattr(socket, 'AF_UNIX'):
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) # pylint: disable=no-member
         else:
             # fallback to AF_INET if this is not unix
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -241,18 +243,16 @@ def _get_linux_port_from_port_server(portserver_address, pid):
 
             # Read response.
             # 1K should be ample buffer space.
-            buf = sock.recv(1024)
+            return sock.recv(1024)
         finally:
             sock.close()
-    except socket.error as e:
-        print('Socket error when connecting to portserver:', e,
+    except socket.error as error:
+        print('Socket error when connecting to portserver:', error,
               file=sys.stderr)
         return None
 
 
 def _get_windows_port_from_port_server(portserver_address, pid):
-    import _winapi
-
     try:
         handle = _winapi.CreateFile(
             "\\\\.\\pipe\\" + portserver_address,
@@ -263,11 +263,11 @@ def _get_windows_port_from_port_server(portserver_address, pid):
             0,
             0)
 
-        _winapi.WriteFile(handle, str(os.getpid()).encode('utf-8'))
+        _winapi.WriteFile(handle, str(pid).encode('utf-8'))
         data, _ = _winapi.ReadFile(handle, 6, 0)
         return data
-    except FileNotFoundError as e:
-        print('File error when connecting to portserver:', e,
+    except FileNotFoundError as error:
+        print('File error when connecting to portserver:', error,
               file=sys.stderr)
         return None
 

@@ -386,7 +386,7 @@ def main():
         server_address = config.portserver_windows_pipe_address
     else:
         event_loop.add_signal_handler(
-            signal.SIGUSR1, request_handler.dump_stats)
+            signal.SIGUSR1, request_handler.dump_stats) # pylint: disable=no-member
 
         old_py_loop = {'loop': event_loop} if sys.version_info < (3, 10) else {}
         coro = asyncio.start_unix_server(
@@ -407,7 +407,7 @@ def main():
 
     if sys.platform != 'win32':
         event_loop.run_until_complete(server.wait_closed())
-        event_loop.remove_signal_handler(signal.SIGUSR1)
+        event_loop.remove_signal_handler(signal.SIGUSR1) # pylint: disable=no-member
 
     event_loop.close()
     request_handler.dump_stats()
