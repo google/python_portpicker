@@ -35,6 +35,8 @@ import signal
 import socket
 import sys
 import psutil
+import subprocess
+from datetime import datetime, timezone, timedelta
 
 log = None  # Initialized to a logging.Logger by _configure_logging().
 
@@ -51,11 +53,32 @@ def _get_process_command_line(pid):
 
 
 def _get_process_start_time(pid):
-    try:
-        with open('/proc/{}/stat'.format(pid), 'rt') as pid_stat_f:
-            return int(pid_stat_f.readline().split()[21])
-    except IOError:
-        return 0
+    if sys.platform == 'win32':
+        cmd_result = subprocess.run(
+            f'wmic process where ProcessID="{pid}" get CreationDate',
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE).stdout
+
+        datetime_result = cmd_result.decode().splitlines()[2].strip()
+
+        try:
+            utc_time = int(datetime_result[-3:])
+        except ValueError:
+            return 0
+
+        utc_offset = timezone(timedelta(seconds=utc_time * 60))
+        utc_hours = utc_time // 60
+        utc_minutes = utc_time % 60
+        formatted_time = f'{datetime_result[:-3]}{utc_hours:02}{utc_minutes:02}'
+        date = datetime.strptime(formatted_time, '%Y%m%d%H%M%S.%f%z')
+        return (datetime.now(utc_offset) - date).total_seconds() * 1000
+    else:
+        try:
+            with open('/proc/{}/stat'.format(pid), 'rt') as pid_stat_f:
+                return int(pid_stat_f.readline().split()[21])
+        except IOError:
+            return 0
 
 
 # TODO: Consider importing portpicker.bind() instead of duplicating the code.

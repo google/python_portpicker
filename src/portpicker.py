@@ -266,7 +266,7 @@ def _get_windows_port_from_port_server(portserver_address, pid):
             0,
             0)
 
-        _winapi.WriteFile(handle, str(pid).encode('utf-8'))
+        _winapi.WriteFile(handle, ('%d\n' % pid).encode('ascii'))
         data, _ = _winapi.ReadFile(handle, 6, 0)
         return data
     except FileNotFoundError as error:
