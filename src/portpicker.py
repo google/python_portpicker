@@ -45,6 +45,8 @@ import sys
 
 if sys.platform == 'win32':
     import _winapi
+else:
+    _winapi = None
 
 # The legacy Bind, IsPortFree, etc. names are not exported.
 __all__ = ('bind', 'is_port_free', 'pick_unused_port', 'return_port',
@@ -301,7 +303,7 @@ def get_port_from_port_server(portserver_address, pid=None):
     if pid is None:
         pid = os.getpid()
 
-    if sys.platform == 'win32':
+    if _winapi:
         buf = _get_windows_port_from_port_server(portserver_address, pid)
     else:
         buf = _get_linux_port_from_port_server(portserver_address, pid)

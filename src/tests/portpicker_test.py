@@ -27,6 +27,8 @@ from contextlib import ExitStack
 
 if sys.platform == 'win32':
     import _winapi
+else:
+    _winapi = None
 
 try:
     # pylint: disable=no-name-in-module
@@ -105,7 +107,7 @@ class PickUnusedPortTest(unittest.TestCase):
 
     def testSendsPidToPortServer(self):
         with ExitStack() as stack:
-            if sys.platform == 'win32':
+            if _winapi:
                 create_file_mock = mock.Mock()
                 create_file_mock.return_value = 0
                 read_file_mock = mock.Mock()
@@ -136,7 +138,7 @@ class PickUnusedPortTest(unittest.TestCase):
             stack.enter_context(
                 mock.patch.object(os, 'getpid', return_value=9876))
 
-            if sys.platform == 'win32':
+            if _winapi:
                 create_file_mock = mock.Mock()
                 create_file_mock.return_value = 0
                 read_file_mock = mock.Mock()
@@ -163,7 +165,7 @@ class PickUnusedPortTest(unittest.TestCase):
     @mock.patch.dict(os.environ,{'PORTSERVER_ADDRESS': 'portserver'})
     def testReusesPortServerPorts(self):
         with ExitStack() as stack:
-            if sys.platform == 'win32':
+            if _winapi:
                 read_file_mock = mock.Mock()
                 read_file_mock.side_effect = [
                     (b'12345\n', 0),
@@ -313,7 +315,7 @@ class PickUnusedPortTest(unittest.TestCase):
         ]
 
         # Using v6only=0 on Windows doesn't result in collisions
-        if sys.platform != 'win32':
+        if not _winapi:
             cases.extend([
                 (socket.AF_INET6, socket.SOCK_STREAM, 0),
                 (socket.AF_INET6, socket.SOCK_DGRAM,  0),

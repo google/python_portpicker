@@ -46,39 +46,16 @@ _PROTOS = [(socket.SOCK_STREAM, socket.IPPROTO_TCP),
 
 def _get_process_command_line(pid):
     try:
-        with open('/proc/{}/cmdline'.format(pid), 'rt') as cmdline_f:
-            return cmdline_f.read()
-    except IOError:
+        return psutil.Process(pid).cmdline()
+    except psutil.NoSuchProcess:
         return ''
 
 
 def _get_process_start_time(pid):
-    if sys.platform == 'win32':
-        cmd_result = subprocess.run(
-            f'wmic process where ProcessID="{pid}" get CreationDate',
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE).stdout
-
-        datetime_result = cmd_result.decode().splitlines()[2].strip()
-
-        try:
-            utc_time = int(datetime_result[-3:])
-        except ValueError:
-            return 0
-
-        utc_offset = timezone(timedelta(seconds=utc_time * 60))
-        utc_hours = utc_time // 60
-        utc_minutes = utc_time % 60
-        formatted_time = f'{datetime_result[:-3]}{utc_hours:02}{utc_minutes:02}'
-        date = datetime.strptime(formatted_time, '%Y%m%d%H%M%S.%f%z')
-        return (datetime.now(utc_offset) - date).total_seconds() * 1000
-    else:
-        try:
-            with open('/proc/{}/stat'.format(pid), 'rt') as pid_stat_f:
-                return int(pid_stat_f.readline().split()[21])
-        except IOError:
-            return 0
+    try:
+        return psutil.Process(pid).create_time()
+    except psutil.NoSuchProcess:
+        return 0.0
 
 
 # TODO: Consider importing portpicker.bind() instead of duplicating the code.
@@ -173,7 +150,7 @@ class _PortInfo(object):
     def __init__(self, port):
         self.port = port
         self.pid = 0
-        self.start_time = 0
+        self.start_time = 0.0
 
 
 class _PortPool(object):
@@ -214,7 +191,7 @@ class _PortPool(object):
             candidate = self._port_queue.pop()
             self._port_queue.appendleft(candidate)
             check_count += 1
-            if (candidate.start_time == 0 or
+            if (candidate.start_time == 0.0 or
                 candidate.start_time != _get_process_start_time(candidate.pid)):
                 if _is_port_free(candidate.port):
                     candidate.pid = pid
@@ -329,7 +306,7 @@ def _parse_command_line():
         default='@unittest-portserver',
         help='Address of AF_UNIX socket on which to listen on Unix (first @ is '
              'a NUL) or the name of the pipe on Windows (first @ is the '
-             '\\\\.\\pipe\\ prefix).')
+             r'\\.\pipe\ prefix).')
     parser.add_argument('--verbose',
                         action='store_true',
                         default=False,
@@ -425,6 +402,7 @@ def main():
     server.close()
 
     if sys.platform != 'win32':
+        # PipeServer doesn't have a wait_closed() function
         event_loop.run_until_complete(server.wait_closed())
         event_loop.remove_signal_handler(signal.SIGUSR1) # pylint: disable=no-member
 

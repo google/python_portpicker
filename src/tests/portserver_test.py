@@ -40,7 +40,7 @@ import portserver
 def setUpModule():
     portserver._configure_logging(verbose=True)
 
-def fork_process():
+def exit_immediately():
     os._exit(0)
 
 class PortserverFunctionsTest(unittest.TestCase):
@@ -114,7 +114,7 @@ class PortserverFunctionsTest(unittest.TestCase):
         self.assertFalse(portserver._should_allocate_port(1))
         self.assertTrue(portserver._should_allocate_port, os.getpid())
 
-        p = Process(target=fork_process)
+        p = Process(target=exit_immediately)
         p.start()
         child_pid = p.pid
         p.join()
