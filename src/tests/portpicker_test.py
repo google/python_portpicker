@@ -23,6 +23,12 @@ import random
 import socket
 import sys
 import unittest
+from contextlib import ExitStack
+
+if sys.platform == 'win32':
+    import _winapi
+else:
+    _winapi = None
 
 try:
     # pylint: disable=no-name-in-module
@@ -100,27 +106,82 @@ class PickUnusedPortTest(unittest.TestCase):
             self.assertTrue(self.IsUnusedUDPPort(port))
 
     def testSendsPidToPortServer(self):
-        server = mock.Mock()
-        server.recv.return_value = b'42768\n'
-        with mock.patch.object(socket, 'socket', return_value=server):
-            port = portpicker.get_port_from_port_server('portserver', pid=1234)
-            server.sendall.assert_called_once_with(b'1234\n')
+        with ExitStack() as stack:
+            if _winapi:
+                create_file_mock = mock.Mock()
+                create_file_mock.return_value = 0
+                read_file_mock = mock.Mock()
+                write_file_mock = mock.Mock()
+                read_file_mock.return_value = (b'42768\n', 0)
+                stack.enter_context(
+                    mock.patch('_winapi.CreateFile', new=create_file_mock))
+                stack.enter_context(
+                    mock.patch('_winapi.WriteFile', new=write_file_mock))
+                stack.enter_context(
+                    mock.patch('_winapi.ReadFile', new=read_file_mock))
+                port = portpicker.get_port_from_port_server(
+                    'portserver', pid=1234)
+                write_file_mock.assert_called_once_with(0, b'1234\n')
+            else:
+                server = mock.Mock()
+                server.recv.return_value = b'42768\n'
+                stack.enter_context(
+                    mock.patch.object(socket, 'socket', return_value=server))
+                port = portpicker.get_port_from_port_server(
+                    'portserver', pid=1234)
+                server.sendall.assert_called_once_with(b'1234\n')
+
         self.assertEqual(port, 42768)
 
     def testPidDefaultsToOwnPid(self):
-        server = mock.Mock()
-        server.recv.return_value = b'52768\n'
-        with mock.patch.object(socket, 'socket', return_value=server):
-            with mock.patch.object(os, 'getpid', return_value=9876):
+        with ExitStack() as stack:
+            stack.enter_context(
+                mock.patch.object(os, 'getpid', return_value=9876))
+
+            if _winapi:
+                create_file_mock = mock.Mock()
+                create_file_mock.return_value = 0
+                read_file_mock = mock.Mock()
+                write_file_mock = mock.Mock()
+                read_file_mock.return_value = (b'52768\n', 0)
+                stack.enter_context(
+                    mock.patch('_winapi.CreateFile', new=create_file_mock))
+                stack.enter_context(
+                    mock.patch('_winapi.WriteFile', new=write_file_mock))
+                stack.enter_context(
+                    mock.patch('_winapi.ReadFile', new=read_file_mock))
+                port = portpicker.get_port_from_port_server('portserver')
+                write_file_mock.assert_called_once_with(0, b'9876\n')
+            else:
+                server = mock.Mock()
+                server.recv.return_value = b'52768\n'
+                stack.enter_context(
+                    mock.patch.object(socket, 'socket', return_value=server))
                 port = portpicker.get_port_from_port_server('portserver')
                 server.sendall.assert_called_once_with(b'9876\n')
+
         self.assertEqual(port, 52768)
 
     @mock.patch.dict(os.environ,{'PORTSERVER_ADDRESS': 'portserver'})
     def testReusesPortServerPorts(self):
-        server = mock.Mock()
-        server.recv.side_effect = [b'12345\n', b'23456\n', b'34567\n']
-        with mock.patch.object(socket, 'socket', return_value=server):
+        with ExitStack() as stack:
+            if _winapi:
+                read_file_mock = mock.Mock()
+                read_file_mock.side_effect = [
+                    (b'12345\n', 0),
+                    (b'23456\n', 0),
+                    (b'34567\n', 0),
+                ]
+                stack.enter_context(mock.patch('_winapi.CreateFile'))
+                stack.enter_context(mock.patch('_winapi.WriteFile'))
+                stack.enter_context(
+                    mock.patch('_winapi.ReadFile', new=read_file_mock))
+            else:
+                server = mock.Mock()
+                server.recv.side_effect = [b'12345\n', b'23456\n', b'34567\n']
+                stack.enter_context(
+                    mock.patch.object(socket, 'socket', return_value=server))
+
             self.assertEqual(portpicker.pick_unused_port(), 12345)
             self.assertEqual(portpicker.pick_unused_port(), 23456)
             portpicker.return_port(12345)
@@ -248,12 +309,18 @@ class PickUnusedPortTest(unittest.TestCase):
 
         cases = [
             (socket.AF_INET,  socket.SOCK_STREAM, None),
-            (socket.AF_INET6, socket.SOCK_STREAM, 0),
             (socket.AF_INET6, socket.SOCK_STREAM, 1),
             (socket.AF_INET,  socket.SOCK_DGRAM,  None),
-            (socket.AF_INET6, socket.SOCK_DGRAM,  0),
             (socket.AF_INET6, socket.SOCK_DGRAM,  1),
         ]
+
+        # Using v6only=0 on Windows doesn't result in collisions
+        if not _winapi:
+            cases.extend([
+                (socket.AF_INET6, socket.SOCK_STREAM, 0),
+                (socket.AF_INET6, socket.SOCK_DGRAM,  0),
+            ])
+
         for (sock_family, sock_type, v6only) in cases:
             # Occupy the port on a subset of possible protocols.
             try:

@@ -43,6 +43,11 @@ import random
 import socket
 import sys
 
+if sys.platform == 'win32':
+    import _winapi
+else:
+    _winapi = None
+
 # The legacy Bind, IsPortFree, etc. names are not exported.
 __all__ = ('bind', 'is_port_free', 'pick_unused_port', 'return_port',
            'add_reserved_port', 'get_port_from_port_server')
@@ -63,7 +68,6 @@ _random_ports = set()
 
 class NoFreePortFoundError(Exception):
     """Exception indicating that no free port could be found."""
-    pass
 
 
 def add_reserved_port(port):
@@ -217,6 +221,61 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
     raise NoFreePortFoundError()
 
 
+def _get_linux_port_from_port_server(portserver_address, pid):
+    # An AF_UNIX address may start with a zero byte, in which case it is in the
+    # "abstract namespace", and doesn't have any filesystem representation.
+    # See 'man 7 unix' for details.
+    # The convention is to write '@' in the address to represent this zero byte.
+    if portserver_address[0] == '@':
+        portserver_address = '\0' + portserver_address[1:]
+
+    try:
+        # Create socket.
+        if hasattr(socket, 'AF_UNIX'):
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) # pylint: disable=no-member
+        else:
+            # fallback to AF_INET if this is not unix
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            # Connect to portserver.
+            sock.connect(portserver_address)
+
+            # Write request.
+            sock.sendall(('%d\n' % pid).encode('ascii'))
+
+            # Read response.
+            # 1K should be ample buffer space.
+            return sock.recv(1024)
+        finally:
+            sock.close()
+    except socket.error as error:
+        print('Socket error when connecting to portserver:', error,
+              file=sys.stderr)
+        return None
+
+
+def _get_windows_port_from_port_server(portserver_address, pid):
+    if portserver_address[0] == '@':
+        portserver_address = '\\\\.\\pipe\\' + portserver_address[1:]
+
+    try:
+        handle = _winapi.CreateFile(
+            portserver_address,
+            _winapi.GENERIC_READ | _winapi.GENERIC_WRITE,
+            0,
+            0,
+            _winapi.OPEN_EXISTING,
+            0,
+            0)
+
+        _winapi.WriteFile(handle, ('%d\n' % pid).encode('ascii'))
+        data, _ = _winapi.ReadFile(handle, 6, 0)
+        return data
+    except FileNotFoundError as error:
+        print('File error when connecting to portserver:', error,
+              file=sys.stderr)
+        return None
+
 def get_port_from_port_server(portserver_address, pid=None):
     """Request a free a port from a system-wide portserver.
 
@@ -240,38 +299,16 @@ def get_port_from_port_server(portserver_address, pid=None):
     """
     if not portserver_address:
         return None
-    # An AF_UNIX address may start with a zero byte, in which case it is in the
-    # "abstract namespace", and doesn't have any filesystem representation.
-    # See 'man 7 unix' for details.
-    # The convention is to write '@' in the address to represent this zero byte.
-    if portserver_address[0] == '@':
-        portserver_address = '\0' + portserver_address[1:]
 
     if pid is None:
         pid = os.getpid()
 
-    try:
-        # Create socket.
-        if hasattr(socket, 'AF_UNIX'):
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        else:
-            # fallback to AF_INET if this is not unix
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            # Connect to portserver.
-            sock.connect(portserver_address)
+    if _winapi:
+        buf = _get_windows_port_from_port_server(portserver_address, pid)
+    else:
+        buf = _get_linux_port_from_port_server(portserver_address, pid)
 
-            # Write request.
-            sock.sendall(('%d\n' % pid).encode('ascii'))
-
-            # Read response.
-            # 1K should be ample buffer space.
-            buf = sock.recv(1024)
-        finally:
-            sock.close()
-    except socket.error as e:
-        print('Socket error when connecting to portserver:', e,
-              file=sys.stderr)
+    if buf is None:
         return None
 
     try:

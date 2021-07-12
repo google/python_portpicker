@@ -25,14 +25,23 @@ import sys
 import time
 import unittest
 from unittest import mock
+from multiprocessing import Process
 
 import portpicker
+
+# On Windows, portserver.py is located in the "Scripts" folder, which isn't
+# added to the import path by default
+if sys.platform == 'win32':
+    sys.path.append(os.path.join(os.path.split(sys.executable)[0]))
+
 import portserver
 
 
 def setUpModule():
     portserver._configure_logging(verbose=True)
 
+def exit_immediately():
+    os._exit(0)
 
 class PortserverFunctionsTest(unittest.TestCase):
 
@@ -53,12 +62,18 @@ class PortserverFunctionsTest(unittest.TestCase):
 
         cases = [
             (socket.AF_INET,  socket.SOCK_STREAM, None),
-            (socket.AF_INET6, socket.SOCK_STREAM, 0),
             (socket.AF_INET6, socket.SOCK_STREAM, 1),
             (socket.AF_INET,  socket.SOCK_DGRAM,  None),
-            (socket.AF_INET6, socket.SOCK_DGRAM,  0),
             (socket.AF_INET6, socket.SOCK_DGRAM,  1),
         ]
+
+        # Using v6only=0 on Windows doesn't result in collisions
+        if sys.platform != 'win32':
+            cases.extend([
+                (socket.AF_INET6, socket.SOCK_STREAM, 0),
+                (socket.AF_INET6, socket.SOCK_DGRAM,  0),
+            ])
+
         for (sock_family, sock_type, v6only) in cases:
             # Occupy the port on a subset of possible protocols.
             try:
@@ -68,6 +83,10 @@ class PortserverFunctionsTest(unittest.TestCase):
                       file=sys.stderr)
                 # Skip this case, since we cannot occupy a port.
                 continue
+
+            if not hasattr(socket, 'IPPROTO_IPV6'):
+                v6only = None
+
             if v6only is not None:
                 try:
                     sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY,
@@ -94,11 +113,12 @@ class PortserverFunctionsTest(unittest.TestCase):
         self.assertFalse(portserver._should_allocate_port(0))
         self.assertFalse(portserver._should_allocate_port(1))
         self.assertTrue(portserver._should_allocate_port, os.getpid())
-        child_pid = os.fork()
-        if child_pid == 0:
-            os._exit(0)
-        else:
-            os.waitpid(child_pid, 0)
+
+        p = Process(target=exit_immediately)
+        p.start()
+        child_pid = p.pid
+        p.join()
+
         # This test assumes that after waitpid returns the kernel has finished
         # cleaning the process.  We also assume that the kernel will not reuse
         # the former child's pid before our next call checks for its existence.
