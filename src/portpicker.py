@@ -198,14 +198,6 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
     Raises:
       NoFreePortFoundError: No free port could be found.
     """
-    # Try random ports first.
-    rng = random.Random()
-    for _ in range(10):
-        port = int(rng.randrange(15000, 25000))
-        if is_port_free(port):
-            _random_ports.add(port)
-            return port
-
     # Next, try a few times to get an OS-assigned port.
     # Ambrose discovered that on the 2.6 kernel, calling Bind() on UDP socket
     # returns the same port over and over. So always try TCP first.
@@ -214,6 +206,14 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
         port = bind(0, _PROTOS[0][0], _PROTOS[0][1])
         # Check if this port is unused on the other protocol.
         if port and bind(port, _PROTOS[1][0], _PROTOS[1][1]):
+            _random_ports.add(port)
+            return port
+
+    # Try random ports as a last resort.
+    rng = random.Random()
+    for _ in range(10):
+        port = int(rng.randrange(15000, 25000))
+        if is_port_free(port):
             _random_ports.add(port)
             return port
 

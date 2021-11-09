@@ -1,3 +1,9 @@
+## 1.5.1
+
+*   When not using a portserver *(you really should)*, try the `bind(0)`
+    approach before hunting for random unused ports. More reliable per
+    https://github.com/google/python_portpicker/issues/16.
+
 ## 1.5.0
 
 *   Add portserver support to Windows using named pipes. To create or connect to
