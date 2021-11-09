@@ -272,7 +272,7 @@ class PickUnusedPortTest(unittest.TestCase):
                 self.assertTrue(self.IsUnusedTCPPort(port))
                 self.assertTrue(self.IsUnusedUDPPort(port))
                 ports += 1
-            self.assertGreater(ports, 95)
+            self.assertGreater(ports, 70)
 
     def pickUnusedPortWithoutServer(self):
         # Try a few times to pick a port, to avoid flakiness and to make sure
