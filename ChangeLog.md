@@ -1,9 +1,8 @@
 ## 1.5.0
 
-*   Add portserver support to Windows using named pipes. To create or connect
-    to a server, prefix the name of the server with `@` (e.g. 
+*   Add portserver support to Windows using named pipes. To create or connect to
+    a server, prefix the name of the server with `@` (e.g.
     `@unittest-portserver`).
-
 
 ## 1.4.0
 
