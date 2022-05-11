@@ -205,7 +205,8 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
         # Ask the OS for an unused port.
         port = bind(0, _PROTOS[0][0], _PROTOS[0][1])
         # Check if this port is unused on the other protocol.
-        if port and bind(port, _PROTOS[1][0], _PROTOS[1][1]):
+        if (port and port not in _random_ports and 
+            bind(port, _PROTOS[1][0], _PROTOS[1][1])):
             _random_ports.add(port)
             return port
 
@@ -213,7 +214,7 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
     rng = random.Random()
     for _ in range(10):
         port = int(rng.randrange(15000, 25000))
-        if is_port_free(port):
+        if port not in _random_ports and is_port_free(port):
             _random_ports.add(port)
             return port
 
