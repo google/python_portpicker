@@ -1,3 +1,8 @@
+## 1.5.2
+
+*   Do not re-pick a known used (not-yet-returned) port when running stand alone
+    without a portserver.
+    
 ## 1.5.1
 
 *   When not using a portserver *(you really should)*, try the `bind(0)`
