@@ -22,6 +22,7 @@ from contextlib import ExitStack
 import errno
 import os
 import socket
+import subprocess
 import sys
 import unittest
 from unittest import mock
@@ -375,6 +376,71 @@ class PickUnusedPortTest(unittest.TestCase):
         self.assertEqual(portpicker.pick_unused_port, portpicker.PickUnusedPort)
         self.assertEqual(portpicker.get_port_from_port_server,
                          portpicker.GetPortFromPortServer)
+
+
+def get_open_listen_tcp_ports():
+    netstat = subprocess.run(['netstat', '-lnt'], capture_output=True, encoding='utf-8')
+    if netstat.returncode != 0:
+        raise unittest.SkipTest('Unable to run netstat -lnt to verify.')
+    rows = (line.split() for line in netstat.stdout.splitlines())
+    listen_addrs = (row[3] for row in rows if row[0].startswith('tcp'))
+    listen_ports = [int(addr.split(':')[-1]) for addr in listen_addrs]
+    return listen_ports
+
+
+@unittest.skipUnless(sys.executable and os.access(sys.executable, os.X_OK),
+                     'sys.executable not executable.')
+@unittest.skipUnless(portpicker.__file__ and
+                     os.access(portpicker.__file__, os.R_OK),
+                     f'cannot read {portpicker.__file__}')
+class PortpickerCommandLineTests(unittest.TestCase):
+    def setUp(self):
+        self.main_py = portpicker.__file__
+
+    def _run_portpicker(self, pp_args, env=None):
+        return subprocess.run([sys.executable, self.main_py] + pp_args,
+                              capture_output=True, env=env, encoding='utf-8')
+
+    def test_command_line_help(self):
+        cmd = self._run_portpicker(['-h'])
+        self.assertNotEqual(0, cmd.returncode)
+        self.assertIn('usage', cmd.stdout)
+        self.assertIn('passed an arg', cmd.stdout)
+        cmd = self._run_portpicker(['--help'])
+        self.assertNotEqual(0, cmd.returncode)
+        self.assertIn('usage', cmd.stdout)
+        self.assertIn('passed an arg', cmd.stdout)
+
+    def test_command_line_interface(self):
+        cmd = self._run_portpicker([str(os.getpid())])
+        cmd.check_returncode()
+        port = int(cmd.stdout)
+        self.assertNotEqual(0, port, msg=cmd)
+        listen_ports = sorted(get_open_listen_tcp_ports())
+        self.assertNotIn(port, listen_ports, msg='expected nothing to be bound to port.')
+
+    def test_command_line_interface_no_portserver(self):
+        cmd = self._run_portpicker([str(os.getpid())],
+                                   env={'PORTSERVER_ADDRESS': ''})
+        cmd.check_returncode()
+        port = int(cmd.stdout)
+        self.assertNotEqual(0, port, msg=cmd)
+        listen_ports = sorted(get_open_listen_tcp_ports())
+        self.assertNotIn(port, listen_ports, msg='expected nothing to be bound to port.')
+
+    def test_command_line_interface_no_portserver_bind_timeout(self):
+        # This test is timing sensitive and leaves that bind process hanging
+        # around consuming resources until it dies on its own unless the test
+        # runner kills the process group upon exit.
+        cmd = self._run_portpicker([str(os.getpid()), '9.5'],
+                                   env={'PORTSERVER_ADDRESS': ''})
+        self.assertEqual(0, cmd.returncode, msg=(cmd.stdout, cmd.stderr))
+        port = int(cmd.stdout)
+        self.assertNotEqual(0, port, msg=cmd)
+        if 'WARNING' in cmd.stderr:
+            raise unittest.SkipTest('bind timeout not supported on this platform.')
+        listen_ports = sorted(get_open_listen_tcp_ports())
+        self.assertIn(port, listen_ports, 'expected port to be bound')
 
 
 if __name__ == '__main__':

@@ -112,8 +112,28 @@ def bind(port, socket_type, socket_proto):
     Returns:
       The port number on success or None on failure.
     """
+    return _bind(port, socket_type, socket_proto)
+
+Bind = bind  # legacy API. pylint: disable=invalid-name
+
+
+def _bind(port, socket_type, socket_proto, return_socket=None, return_family=socket.AF_INET6):
+    """Internal implementation of bind() with an additional internal arg.
+
+    Args:
+      port, socket_type, socket_proto: see bind.
+      return_socket: If supplied, a list that we will append an open bound
+          reuseaddr socket on the port in question to.
+      return_family: The socket family to return in return_socket.
+    """
+    if return_family == socket.AF_INET6:
+        socket_families = (socket.AF_INET, socket.AF_INET6)
+    elif return_family == socket.AF_INET:
+        socket_families = (socket.AF_INET6, socket.AF_INET)
+    else:
+        raise ValueError('unknown return_family %s' % return_family)
     got_socket = False
-    for family in (socket.AF_INET6, socket.AF_INET):
+    for family in socket_families:
         try:
             sock = socket.socket(family, socket_type, socket_proto)
             got_socket = True
@@ -128,10 +148,17 @@ def bind(port, socket_type, socket_proto):
         except socket.error:
             return None
         finally:
-            sock.close()
+            if return_socket is not None and family == return_family:
+                return_socket.append(sock)
+                # Guaranteed last iteration due to pre-loop logic. This
+                # just makes it clear no more iterations are useful.
+                # keeping the bound socket open prevents further bind calls
+                # from succeeding.
+                break
+            else:
+                sock.close()
     return port if got_socket else None
 
-Bind = bind  # legacy API. pylint: disable=invalid-name
 
 
 def is_port_free(port):
@@ -142,13 +169,24 @@ def is_port_free(port):
     Returns:
       boolean, whether it is free to use for both TCP and UDP
     """
-    return bind(port, *_PROTOS[0]) and bind(port, *_PROTOS[1])
+    return _is_port_free(port)
 
 IsPortFree = is_port_free  # legacy API. pylint: disable=invalid-name
 
 
+def _is_port_free(port, return_sockets=None):
+    """Internal implementation of is_port_free.
+
+    Args:
+      port: integer, port to check
+      return_sockets: If supplied, a list that we will append open bound
+        sockets on the port in question to rather than closing them.
+    """
+    return _bind(port, *_PROTOS[0], return_socket=return_sockets) and _bind(port, *_PROTOS[1], return_socket=return_sockets)
+
+
 def pick_unused_port(pid=None, portserver_address=None):
-    """A pure python implementation of PickUnusedPort.
+    """Picks an unused port and reserves it for use by a given process id.
 
     Args:
       pid: PID to tell the portserver to associate the reservation with. If
@@ -161,11 +199,31 @@ def pick_unused_port(pid=None, portserver_address=None):
         address, the environment will be checked for a PORTSERVER_ADDRESS
         variable.  If that is not set, no port server will be used.
 
+    If no portserver is used, no pid based reservation is managed by any
+    central authority. Race conditions and duplicate assignments may occur.
+
     Returns:
       A port number that is unused on both TCP and UDP.
 
     Raises:
       NoFreePortFoundError: No free port could be found.
+    """
+    return _pick_unused_port(pid, portserver_address)
+
+PickUnusedPort = pick_unused_port  # legacy API. pylint: disable=invalid-name
+
+
+def _pick_unused_port(pid=None, portserver_address=None,
+                     noserver_bind_timeout=0):
+    """Internal implementation of pick_unused_port.
+
+    Args:
+      pid, portserver_address: See pick_unused_port().
+      noserver_bind_timeout: If no portserver was used, this is the number of
+        seconds we will attempt to keep a child process around with the ports
+        returned open and bound SO_REUSEADDR style to help avoid race condition
+        port reuse. This attempts os.fork() so it MUST NOT be used in a
+        threaded process.
     """
     try:  # Instead of `if _free_ports:` to handle the race condition.
         port = _free_ports.pop()
@@ -184,18 +242,55 @@ def pick_unused_port(pid=None, portserver_address=None):
                                          pid=pid)
         if port:
             return port
-    return _pick_unused_port_without_server()
-
-PickUnusedPort = pick_unused_port  # legacy API. pylint: disable=invalid-name
+    return _pick_unused_port_without_server(bind_timeout=noserver_bind_timeout)
 
 
-def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-name
+def _spawn_bound_port_holding_daemon(port, bound_sockets, timeout):
+    """If possible, fork()s a daemon process to hold bound_sockets open.
+
+    Emits a warning to stderr if it cannot.
+
+    Args:
+      port: The port number the sockets are bound to (informational).
+      bound_sockets: The list of bound sockets our child process will hold
+          open. If the list is empty, no action is taken.
+      timeout: A positive number of seconds the child should sleep for before
+          closing the sockets and exiting.
+    """
+    if bound_sockets and timeout > 0:
+        try:
+            import time
+            fork_pid = os.fork()  # This concept only works on POSIX.
+        except Exception as err:
+            print('WARNING: Cannot timeout unbind of port', port, '-',
+                  err, file=sys.stderr)
+        else:
+            if fork_pid == 0:
+                # This child process inherits and holds bound_sockets open
+                # for bind_timeout seconds.
+                try:
+                    os.close(sys.stdin.fileno())
+                    os.close(sys.stdout.fileno())
+                    os.close(sys.stderr.fileno())
+                    time.sleep(timeout)
+                    for held_socket in bound_sockets:
+                        held_socket.close()
+                except:
+                    sys.exit(0)
+
+
+def _pick_unused_port_without_server(bind_timeout=0):
     """Pick an available network port without the help of a port server.
 
     This code ensures that the port is available on both TCP and UDP.
 
     This function is an implementation detail of PickUnusedPort(), and
     should not be called by code outside of this module.
+
+    Args:
+      bind_timeout: number of seconds to attempt to keep a child process
+          process around bound SO_REUSEADDR style to the port. If we cannot
+          do that we emit a warning to stderr.
 
     Returns:
       A port number that is unused on both TCP and UDP.
@@ -206,22 +301,34 @@ def _pick_unused_port_without_server():  # Protected. pylint: disable=invalid-na
     # Next, try a few times to get an OS-assigned port.
     # Ambrose discovered that on the 2.6 kernel, calling Bind() on UDP socket
     # returns the same port over and over. So always try TCP first.
+    port = None
+    bound_sockets = [] if bind_timeout > 0 else None
     for _ in range(10):
         # Ask the OS for an unused port.
-        port = bind(0, _PROTOS[0][0], _PROTOS[0][1])
+        port = _bind(0, _PROTOS[0][0], _PROTOS[0][1], bound_sockets)
         # Check if this port is unused on the other protocol.
         if (port and port not in _random_ports and
-            bind(port, _PROTOS[1][0], _PROTOS[1][1])):
+            _bind(port, _PROTOS[1][0], _PROTOS[1][1], bound_sockets)):
             _random_ports.add(port)
+            _spawn_bound_port_holding_daemon(port, bound_sockets, bind_timeout)
             return port
+        elif bound_sockets:
+            for held_socket in bound_sockets:
+                held_socket.close()
+            del bound_sockets[:]
 
     # Try random ports as a last resort.
     rng = random.Random()
     for _ in range(10):
         port = int(rng.randrange(15000, 25000))
-        if port not in _random_ports and is_port_free(port):
+        if port not in _random_ports and _is_port_free(port, bound_sockets):
             _random_ports.add(port)
+            _spawn_bound_port_holding_daemon(port, bound_sockets, bind_timeout)
             return port
+        elif bound_sockets:
+            for held_socket in bound_sockets:
+                held_socket.close()
+            del bound_sockets[:]
 
     # Give up.
     raise NoFreePortFoundError()
@@ -282,6 +389,7 @@ def _get_windows_port_from_port_server(portserver_address, pid):
               file=sys.stderr)
         return None
 
+
 def get_port_from_port_server(portserver_address, pid=None):
     """Request a free a port from a system-wide portserver.
 
@@ -330,8 +438,33 @@ GetPortFromPortServer = get_port_from_port_server  # legacy API. pylint: disable
 
 
 def main(argv):
-    """If passed an arg, treat it as a PID, otherwise portpicker uses getpid."""
-    port = pick_unused_port(pid=int(argv[1]) if len(argv) > 1 else None)
+    """If passed an arg, treat it as a PID, otherwise portpicker uses getpid.
+
+    A second optional argument can be a floating point bind timeout in seconds
+    that we will attempt to leave a process around holding the ports open bound
+    SO_REUSEADDR style. This bind with a timeout will only be attempted if no
+    portserver was found. If the timeout was not possible, we'll warn on stderr.
+
+      #!/bin/bash
+      port="$(portpicker $$ 3.14)"
+      test_my_server "$port"
+
+    This will pick a port for your script's PID and assign it to $port, while
+    attempting to keep a socket bound to it using SO_REUSEADDR for 3.14 seconds
+    after the portpicker process has exited if a portserver was not used. This
+    is a convenient hack to attempt to prevent port reallocation during scripts
+    outside of portserver managed environments such as developer workstations.
+
+    Older versions of portpicker ignore more than the first argument so passing
+    a bind timeout value will silently have no effect on old versions.
+    """
+    if '-h' in argv or '--help' in argv:
+        print(argv[0], 'usage:')
+        print(main.__doc__)
+        sys.exit(1)
+    pid=int(argv[1]) if len(argv) > 1 else None
+    bind_timeout=float(argv[2]) if len(argv) > 2 else 0
+    port = _pick_unused_port(pid=pid, noserver_bind_timeout=bind_timeout)
     if not port:
         sys.exit(1)
     print(port)
