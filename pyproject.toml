@@ -17,5 +17,5 @@ deps =
 commands =
     check-manifest --ignore 'src/tests/**'
     python -c 'from setuptools import setup; setup()' check -m -s
-    py.test -s {posargs}
+    py.test -v -s {posargs}
 """
