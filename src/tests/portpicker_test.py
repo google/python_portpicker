@@ -48,9 +48,57 @@ class CommonTestMixin:
         portpicker._random_ports.clear()
 
 
-@unittest.skipIf('PORTSERVER_ADDRESS' not in os.environ,
-                 'no port server to test against')
+@unittest.skipIf(('PORTSERVER_ADDRESS' not in os.environ) and
+                 not hasattr(socket, 'AF_UNIX'),
+                 'no port server to test against.')
 class PickUnusedPortTestWithAPortServer(CommonTestMixin, unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.portserver_process = None
+        if 'PORTSERVER_ADDRESS' not in os.environ:
+            # Launch a portserver child process for our tests to use if we are
+            # able to. Obviously not host-exclusive, but good for integration
+            # testing purposes on CI without a portserver of its own.
+            cls.portserver_address = '@pid%d-test-ports' % os.getpid()
+            try:
+                cls.portserver_process = subprocess.Popen(
+                        ['portserver.py',  # Installed in PATH within the venv.
+                         '--portserver_address=%s' % cls.portserver_address])
+            except EnvironmentError as err:
+                raise unittest.SkipTest(
+                        'Unable to launch portserver.py: %s' % err)
+            # loop for a few seconds waiting for that socket to work.
+            for _ in range(123):
+                time.sleep(0.05)
+                ps_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                linux_addr = '\0' + cls.portserver_address[1:]
+                try:
+                    ps_sock.connect(linux_addr)
+                except socket.error:
+                    continue
+                ps_sock.close()
+                break
+            else:
+                # The socket never accepted connections, assume the portserver
+                # failed and bail out.
+                if cls.portserver_process.poll() is not None:
+                    cls.portserver_process.kill()
+                    cls.portserver_process.wait()
+                cls.portserver_process = None
+                raise unittest.SkipTest(
+                        'Unable to launch a portserver and connect to it.')
+            os.environ['PORTSERVER_ADDRESS'] = cls.portserver_address
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.portserver_process:
+            if os.environ.get('PORTSERVER_ADDRESS') == cls.portserver_address:
+                del os.environ['PORTSERVER_ADDRESS']
+            if cls.portserver_process.poll() is not None:
+                cls.portserver_process.kill()
+                cls.portserver_process.wait()
+            cls.portserver_process = None
 
     def testPickUnusedCanSuccessfullyUsePortServer(self):
 
