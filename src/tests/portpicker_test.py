@@ -24,6 +24,7 @@ import os
 import socket
 import subprocess
 import sys
+import time
 import unittest
 from unittest import mock
 
@@ -31,7 +32,7 @@ import portpicker
 _winapi = portpicker._winapi
 
 
-class PickUnusedPortTest(unittest.TestCase):
+class CommonTestMixin:
     def IsUnusedTCPPort(self, port):
         return self._bind(port, socket.SOCK_STREAM, socket.IPPROTO_TCP)
 
@@ -46,15 +47,11 @@ class PickUnusedPortTest(unittest.TestCase):
         portpicker._free_ports.clear()
         portpicker._random_ports.clear()
 
-    def testPickUnusedPortActuallyWorks(self):
-        """This test can be flaky."""
-        for _ in range(10):
-            port = portpicker.pick_unused_port()
-            self.assertTrue(self.IsUnusedTCPPort(port))
-            self.assertTrue(self.IsUnusedUDPPort(port))
 
-    @unittest.skipIf('PORTSERVER_ADDRESS' not in os.environ,
-                     'no port server to test against')
+@unittest.skipIf('PORTSERVER_ADDRESS' not in os.environ,
+                 'no port server to test against')
+class PickUnusedPortTestWithAPortServer(CommonTestMixin, unittest.TestCase):
+
     def testPickUnusedCanSuccessfullyUsePortServer(self):
 
         with mock.patch.object(portpicker, '_pick_unused_port_without_server'):
@@ -68,8 +65,6 @@ class PickUnusedPortTest(unittest.TestCase):
             self.assertTrue(self.IsUnusedTCPPort(port))
             self.assertTrue(self.IsUnusedUDPPort(port))
 
-    @unittest.skipIf('PORTSERVER_ADDRESS' not in os.environ,
-                     'no port server to test against')
     def testPickUnusedCanSuccessfullyUsePortServerAddressKwarg(self):
 
         with mock.patch.object(portpicker, '_pick_unused_port_without_server'):
@@ -88,13 +83,21 @@ class PickUnusedPortTest(unittest.TestCase):
             finally:
                 os.environ['PORTSERVER_ADDRESS'] = addr
 
-    @unittest.skipIf('PORTSERVER_ADDRESS' not in os.environ,
-                     'no port server to test against')
     def testGetPortFromPortServer(self):
         """Exercise the get_port_from_port_server() helper function."""
         for _ in range(10):
             port = portpicker.get_port_from_port_server(
                 os.environ['PORTSERVER_ADDRESS'])
+            self.assertTrue(self.IsUnusedTCPPort(port))
+            self.assertTrue(self.IsUnusedUDPPort(port))
+
+
+class PickUnusedPortTest(CommonTestMixin, unittest.TestCase):
+
+    def testPickUnusedPortActuallyWorks(self):
+        """This test can be flaky."""
+        for _ in range(10):
+            port = portpicker.pick_unused_port()
             self.assertTrue(self.IsUnusedTCPPort(port))
             self.assertTrue(self.IsUnusedUDPPort(port))
 
@@ -432,7 +435,9 @@ class PortpickerCommandLineTests(unittest.TestCase):
         # This test is timing sensitive and leaves that bind process hanging
         # around consuming resources until it dies on its own unless the test
         # runner kills the process group upon exit.
-        cmd = self._run_portpicker([str(os.getpid()), '9.5'],
+        timeout = 9.5
+        before = time.monotonic()
+        cmd = self._run_portpicker([str(os.getpid()), str(timeout)],
                                    env={'PORTSERVER_ADDRESS': ''})
         self.assertEqual(0, cmd.returncode, msg=(cmd.stdout, cmd.stderr))
         port = int(cmd.stdout)
@@ -440,7 +445,7 @@ class PortpickerCommandLineTests(unittest.TestCase):
         if 'WARNING' in cmd.stderr:
             raise unittest.SkipTest('bind timeout not supported on this platform.')
         listen_ports = sorted(get_open_listen_tcp_ports())
-        self.assertIn(port, listen_ports, 'expected port to be bound')
+        self.assertIn(port, listen_ports, msg='expected port to be bound. %f seconds elapsed of %f bind timeout.' % (time.monotonic() - before, timeout))
 
 
 if __name__ == '__main__':
