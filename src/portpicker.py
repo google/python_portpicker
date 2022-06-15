@@ -118,10 +118,10 @@ Bind = bind  # legacy API. pylint: disable=invalid-name
 
 
 def _bind(port, socket_type, socket_proto, return_socket=None, return_family=socket.AF_INET6):
-    """Internal implementation of bind() with an additional internal arg.
+    """Internal implementation of bind.
 
     Args:
-      port, socket_type, socket_proto: see bind.
+      port, socket_type, socket_proto: see bind().
       return_socket: If supplied, a list that we will append an open bound
           reuseaddr socket on the port in question to.
       return_family: The socket family to return in return_socket.
