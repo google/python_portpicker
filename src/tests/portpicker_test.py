@@ -48,9 +48,10 @@ class CommonTestMixin:
         portpicker._random_ports.clear()
 
 
-@unittest.skipIf(('PORTSERVER_ADDRESS' not in os.environ) and
-                 not hasattr(socket, 'AF_UNIX'),
-                 'no port server to test against.')
+@unittest.skipIf(
+        ('PORTSERVER_ADDRESS' not in os.environ) and
+        not hasattr(socket, 'AF_UNIX'),
+        'no existing port server; test launching code requires AF_UNIX.')
 class PickUnusedPortTestWithAPortServer(CommonTestMixin, unittest.TestCase):
 
     @classmethod
@@ -68,26 +69,28 @@ class PickUnusedPortTestWithAPortServer(CommonTestMixin, unittest.TestCase):
             except EnvironmentError as err:
                 raise unittest.SkipTest(
                         'Unable to launch portserver.py: %s' % err)
+            linux_addr = '\0' + cls.portserver_address[1:]  # The @ means 0.
             # loop for a few seconds waiting for that socket to work.
+            err = '???'
             for _ in range(123):
                 time.sleep(0.05)
-                ps_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-                linux_addr = '\0' + cls.portserver_address[1:]
                 try:
+                    ps_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                     ps_sock.connect(linux_addr)
-                except socket.error:
+                except socket.error as err:
                     continue
                 ps_sock.close()
                 break
             else:
-                # The socket never accepted connections, assume the portserver
-                # failed and bail out.
+                # The socket failed or never accepted connections, assume our
+                # portserver setup attempt failed and bail out.
                 if cls.portserver_process.poll() is not None:
                     cls.portserver_process.kill()
                     cls.portserver_process.wait()
                 cls.portserver_process = None
                 raise unittest.SkipTest(
-                        'Unable to launch a portserver and connect to it.')
+                        'Unable to connect to our own portserver.py: %s' % err)
+            # Point child processes at our shiny portserver process.
             os.environ['PORTSERVER_ADDRESS'] = cls.portserver_address
 
     @classmethod
@@ -430,20 +433,23 @@ class PickUnusedPortTest(CommonTestMixin, unittest.TestCase):
 
 
 def get_open_listen_tcp_ports():
-    netstat = subprocess.run(['netstat', '-lnt'], capture_output=True, encoding='utf-8')
+    netstat = subprocess.run(['netstat', '-lnt'], capture_output=True,
+                             encoding='utf-8')
     if netstat.returncode != 0:
-        raise unittest.SkipTest('Unable to run netstat -lnt to verify.')
+        raise unittest.SkipTest('Unable to run netstat -lnt to list binds.')
     rows = (line.split() for line in netstat.stdout.splitlines())
     listen_addrs = (row[3] for row in rows if row[0].startswith('tcp'))
     listen_ports = [int(addr.split(':')[-1]) for addr in listen_addrs]
     return listen_ports
 
 
-@unittest.skipUnless(sys.executable and os.access(sys.executable, os.X_OK),
-                     'sys.executable not executable.')
-@unittest.skipUnless(portpicker.__file__ and
-                     os.access(portpicker.__file__, os.R_OK),
-                     f'cannot read {portpicker.__file__}')
+@unittest.skipUnless((sys.executable and os.access(sys.executable, os.X_OK)
+                      and portpicker.__file__ and
+                      os.access(portpicker.__file__, os.R_OK))
+                     or (os.environ.get('TEST_PORTPICKER_CLI') and
+                         os.access(os.environ['TEST_PORTPICKER_CLI'], os.X_OK)),
+                     'sys.executable portpicker.__file__ not launchable and '
+                     ' no TEST_PORTPICKER_CLI supplied.')
 class PortpickerCommandLineTests(unittest.TestCase):
     def setUp(self):
         self.main_py = portpicker.__file__
@@ -452,7 +458,11 @@ class PortpickerCommandLineTests(unittest.TestCase):
         env = dict(os.environ)
         if env_override:
             env.update(env_override)
-        return subprocess.run([sys.executable, self.main_py] + pp_args,
+        if os.environ.get('TEST_PORTPICKER_CLI'):
+            pp_command = [os.environ['TEST_PORTPICKER_CLI']]
+        else:
+            pp_command = [sys.executable, self.main_py]
+        return subprocess.run(pp_command + pp_args,
                               capture_output=True, env=env, encoding='utf-8')
 
     def test_command_line_help(self):
