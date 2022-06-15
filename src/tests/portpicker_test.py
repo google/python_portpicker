@@ -448,7 +448,10 @@ class PortpickerCommandLineTests(unittest.TestCase):
     def setUp(self):
         self.main_py = portpicker.__file__
 
-    def _run_portpicker(self, pp_args, env=None):
+    def _run_portpicker(self, pp_args, env_override=None):
+        env = dict(os.environ)
+        if env_override:
+            env.update(env_override)
         return subprocess.run([sys.executable, self.main_py] + pp_args,
                               capture_output=True, env=env, encoding='utf-8')
 
@@ -472,7 +475,7 @@ class PortpickerCommandLineTests(unittest.TestCase):
 
     def test_command_line_interface_no_portserver(self):
         cmd = self._run_portpicker([str(os.getpid())],
-                                   env={'PORTSERVER_ADDRESS': ''})
+                                   env_override={'PORTSERVER_ADDRESS': ''})
         cmd.check_returncode()
         port = int(cmd.stdout)
         self.assertNotEqual(0, port, msg=cmd)
@@ -486,7 +489,7 @@ class PortpickerCommandLineTests(unittest.TestCase):
         timeout = 9.5
         before = time.monotonic()
         cmd = self._run_portpicker([str(os.getpid()), str(timeout)],
-                                   env={'PORTSERVER_ADDRESS': ''})
+                                   env_override={'PORTSERVER_ADDRESS': ''})
         self.assertEqual(0, cmd.returncode, msg=(cmd.stdout, cmd.stderr))
         port = int(cmd.stdout)
         self.assertNotEqual(0, port, msg=cmd)
