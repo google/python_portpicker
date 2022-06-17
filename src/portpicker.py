@@ -151,10 +151,11 @@ def _bind(port, socket_type, socket_proto, return_socket=None,
         except socket.error:
             return None
         finally:
-            if return_socket is not None and family == return_family:
-                return_socket.append(sock)
-                break  # Final iteration due to pre-loop logic; don't close.
-            sock.close()
+            if return_socket is None or family != return_family:
+                sock.close()
+        if return_socket is not None and family == return_family:
+            return_socket.append(sock)
+            break  # Final iteration due to pre-loop logic; don't close.
     return port if got_socket else None
 
 
@@ -254,9 +255,9 @@ def _spawn_bound_port_holding_daemon(port, bound_sockets, timeout):
     """
     if bound_sockets and timeout > 0:
         try:
-            import time
+            import time  # pylint: disable=import-outside-toplevel
             fork_pid = os.fork()  # This concept only works on POSIX.
-        except Exception as err:
+        except Exception as err:  # pylint: disable=broad-except
             print('WARNING: Cannot timeout unbinding close of port', port,
                   ' closing on exit. -', err, file=sys.stderr)
         else:
@@ -270,7 +271,7 @@ def _spawn_bound_port_holding_daemon(port, bound_sockets, timeout):
                     time.sleep(timeout)
                     for held_socket in bound_sockets:
                         held_socket.close()
-                except:
+                finally:  # Hide errors.
                     sys.exit(0)
 
 
@@ -307,7 +308,7 @@ def _pick_unused_port_without_server(bind_timeout=0):
             _random_ports.add(port)
             _spawn_bound_port_holding_daemon(port, bound_sockets, bind_timeout)
             return port
-        elif bound_sockets:
+        if bound_sockets:
             for held_socket in bound_sockets:
                 held_socket.close()
             del bound_sockets[:]
@@ -322,7 +323,7 @@ def _pick_unused_port_without_server(bind_timeout=0):
                 _spawn_bound_port_holding_daemon(
                         port, bound_sockets, bind_timeout)
                 return port
-            elif bound_sockets:
+            if bound_sockets:
                 for held_socket in bound_sockets:
                     held_socket.close()
                 del bound_sockets[:]
