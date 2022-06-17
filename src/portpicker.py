@@ -265,6 +265,9 @@ def _spawn_bound_port_holding_daemon(port, bound_sockets, timeout):
                 # This child process inherits and holds bound_sockets open
                 # for bind_timeout seconds.
                 try:
+                    # Close the stdio fds as may be connected to
+                    # a pipe that will cause a grandparent process
+                    # to wait on before returning. (cl/427587550)
                     os.close(sys.stdin.fileno())
                     os.close(sys.stdout.fileno())
                     os.close(sys.stderr.fileno())
