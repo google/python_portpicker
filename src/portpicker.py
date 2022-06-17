@@ -114,8 +114,6 @@ def bind(port, socket_type, socket_proto):
     """
     return _bind(port, socket_type, socket_proto)
 
-Bind = bind  # legacy API. pylint: disable=invalid-name
-
 
 def _bind(port, socket_type, socket_proto, return_socket=None, return_family=socket.AF_INET6):
     """Internal implementation of bind.
@@ -160,7 +158,6 @@ def _bind(port, socket_type, socket_proto, return_socket=None, return_family=soc
     return port if got_socket else None
 
 
-
 def is_port_free(port):
     """Check if specified port is free.
 
@@ -170,8 +167,6 @@ def is_port_free(port):
       boolean, whether it is free to use for both TCP and UDP
     """
     return _is_port_free(port)
-
-IsPortFree = is_port_free  # legacy API. pylint: disable=invalid-name
 
 
 def _is_port_free(port, return_sockets=None):
@@ -210,8 +205,6 @@ def pick_unused_port(pid=None, portserver_address=None):
     """
     return _pick_unused_port(pid, portserver_address)
 
-PickUnusedPort = pick_unused_port  # legacy API. pylint: disable=invalid-name
-
 
 def _pick_unused_port(pid=None, portserver_address=None,
                      noserver_bind_timeout=0):
@@ -245,6 +238,7 @@ def _pick_unused_port(pid=None, portserver_address=None,
     return _pick_unused_port_without_server(bind_timeout=noserver_bind_timeout)
 
 
+
 def _spawn_bound_port_holding_daemon(port, bound_sockets, timeout):
     """If possible, fork()s a daemon process to hold bound_sockets open.
 
@@ -262,8 +256,8 @@ def _spawn_bound_port_holding_daemon(port, bound_sockets, timeout):
             import time
             fork_pid = os.fork()  # This concept only works on POSIX.
         except Exception as err:
-            print('WARNING: Cannot timeout unbind of port', port, '-',
-                  err, file=sys.stderr)
+            print('WARNING: Cannot timeout unbinding close of port', port,
+                  ' closing on exit. -', err, file=sys.stderr)
         else:
             if fork_pid == 0:
                 # This child process inherits and holds bound_sockets open
@@ -434,7 +428,13 @@ def get_port_from_port_server(portserver_address, pid=None):
     return port
 
 
-GetPortFromPortServer = get_port_from_port_server  # legacy API. pylint: disable=invalid-name
+# Legacy APIs.
+# pylint: disable=invalid-name
+Bind = bind
+GetPortFromPortServer = get_port_from_port_server
+IsPortFree = is_port_free
+PickUnusedPort = pick_unused_port
+# pylint: enable=invalid-name
 
 
 def main(argv):

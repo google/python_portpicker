@@ -443,9 +443,7 @@ def get_open_listen_tcp_ports():
     return listen_ports
 
 
-@unittest.skipUnless((sys.executable and os.access(sys.executable, os.X_OK)
-                      and portpicker.__file__ and
-                      os.access(portpicker.__file__, os.R_OK))
+@unittest.skipUnless((sys.executable and os.access(sys.executable, os.X_OK))
                      or (os.environ.get('TEST_PORTPICKER_CLI') and
                          os.access(os.environ['TEST_PORTPICKER_CLI'], os.X_OK)),
                      'sys.executable portpicker.__file__ not launchable and '
@@ -461,7 +459,7 @@ class PortpickerCommandLineTests(unittest.TestCase):
         if os.environ.get('TEST_PORTPICKER_CLI'):
             pp_command = [os.environ['TEST_PORTPICKER_CLI']]
         else:
-            pp_command = [sys.executable, self.main_py]
+            pp_command = [sys.executable, '-m', 'portpicker']
         return subprocess.run(pp_command + pp_args,
                               capture_output=True, env=env, encoding='utf-8')
 
