@@ -34,7 +34,12 @@ import portpicker
 if sys.platform == 'win32':
     sys.path.append(os.path.join(os.path.split(sys.executable)[0]))
 
-import portserver
+try:
+    import portserver
+except ImportError:
+    # Or if testing from a third_party/py/portpicker/ style installed
+    # package tree find it this way.
+    from portpicker import portserver
 
 
 def setUpModule():
