@@ -31,6 +31,8 @@ from unittest import mock
 import portpicker
 _winapi = portpicker._winapi
 
+# pylint: disable=invalid-name,protected-access,missing-class-docstring,missing-function-docstring
+
 
 class CommonTestMixin:
     def IsUnusedTCPPort(self, port):
@@ -77,7 +79,7 @@ class PickUnusedPortTestWithAPortServer(CommonTestMixin, unittest.TestCase):
                 try:
                     ps_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                     ps_sock.connect(linux_addr)
-                except socket.error as err:
+                except socket.error as err:  # pylint: disable=unused-variable
                     continue
                 ps_sock.close()
                 break
@@ -461,7 +463,10 @@ class PortpickerCommandLineTests(unittest.TestCase):
         else:
             pp_command = [sys.executable, '-m', 'portpicker']
         return subprocess.run(pp_command + pp_args,
-                              capture_output=True, env=env, encoding='utf-8')
+                              capture_output=True,
+                              env=env,
+                              encoding='utf-8',
+                              check=False)
 
     def test_command_line_help(self):
         cmd = self._run_portpicker(['-h'])
@@ -504,7 +509,9 @@ class PortpickerCommandLineTests(unittest.TestCase):
         if 'WARNING' in cmd.stderr:
             raise unittest.SkipTest('bind timeout not supported on this platform.')
         listen_ports = sorted(get_open_listen_tcp_ports())
-        self.assertIn(port, listen_ports, msg='expected port to be bound. %f seconds elapsed of %f bind timeout.' % (time.monotonic() - before, timeout))
+        self.assertIn(port, listen_ports, msg='expected port to be bound. '
+                      '%f seconds elapsed of %f bind timeout.' %
+                      (time.monotonic() - before, timeout))
 
 
 if __name__ == '__main__':
