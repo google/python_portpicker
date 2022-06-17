@@ -453,7 +453,7 @@ def main(argv):
     portserver was found. If the timeout was not possible, we'll warn on stderr.
 
       #!/bin/bash
-      port="$(portpicker $$ 3.14)"
+      port="$(python -m portpicker $$ 3.14)"
       test_my_server "$port"
 
     This will pick a port for your script's PID and assign it to $port, while
