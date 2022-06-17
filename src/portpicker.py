@@ -264,13 +264,15 @@ def _spawn_bound_port_holding_daemon(port, bound_sockets, timeout):
             if fork_pid == 0:
                 # This child process inherits and holds bound_sockets open
                 # for bind_timeout seconds.
-                os.close(sys.stdin.fileno())
-                os.close(sys.stdout.fileno())
-                os.close(sys.stderr.fileno())
-                time.sleep(timeout)
-                for held_socket in bound_sockets:
-                    held_socket.close()
-                sys.exit(0)
+                try:
+                    os.close(sys.stdin.fileno())
+                    os.close(sys.stdout.fileno())
+                    os.close(sys.stderr.fileno())
+                    time.sleep(timeout)
+                    for held_socket in bound_sockets:
+                        held_socket.close()
+                finally:
+                    sys.exit(0)
 
 
 def _pick_unused_port_without_server(bind_timeout=0):
