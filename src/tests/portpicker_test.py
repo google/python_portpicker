@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # Copyright 2007 Google Inc. All Rights Reserved.
 #
@@ -14,29 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Unittests for the portpicker module."""
+"""Unittests for portpicker."""
 
-from __future__ import print_function
+# pylint: disable=invalid-name,protected-access,missing-class-docstring,missing-function-docstring
+
+from contextlib import ExitStack
 import errno
 import os
-import random
 import socket
 import sys
 import unittest
-from contextlib import ExitStack
-
-if sys.platform == 'win32':
-    import _winapi
-else:
-    _winapi = None
-
-try:
-    # pylint: disable=no-name-in-module
-    from unittest import mock  # Python >= 3.3.
-except ImportError:
-    import mock  # https://pypi.python.org/pypi/mock
+from unittest import mock
 
 import portpicker
+_winapi = portpicker._winapi
 
 
 class PickUnusedPortTest(unittest.TestCase):
@@ -47,6 +38,7 @@ class PickUnusedPortTest(unittest.TestCase):
         return self._bind(port, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 
     def setUp(self):
+        super().setUp()
         # So we can Bind even if portpicker.bind is stubbed out.
         self._bind = portpicker.bind
         portpicker._owned_ports.clear()
@@ -93,7 +85,7 @@ class PickUnusedPortTest(unittest.TestCase):
                 self.assertTrue(self.IsUnusedTCPPort(port))
                 self.assertTrue(self.IsUnusedUDPPort(port))
             finally:
-              os.environ['PORTSERVER_ADDRESS'] = addr
+                os.environ['PORTSERVER_ADDRESS'] = addr
 
     @unittest.skipIf('PORTSERVER_ADDRESS' not in os.environ,
                      'no port server to test against')
@@ -253,12 +245,11 @@ class PickUnusedPortTest(unittest.TestCase):
             # Only successfully return a port if an OS-assigned port is
             # requested, or if we're checking that the last OS-assigned port
             # is unused on the other protocol.
-            if port == 0 or port == self.last_assigned_port:
+            if port in (0, self.last_assigned_port):
                 self.last_assigned_port = self._bind(port, socket_type,
                                                      socket_proto)
                 return self.last_assigned_port
-            else:
-                return None
+            return None
 
         with mock.patch.object(portpicker, 'bind', error_for_explicit_ports):
             # Without server, this can be little flaky, so check that it
@@ -295,7 +286,7 @@ class PickUnusedPortTest(unittest.TestCase):
 
         # Now test the second part, the fallback from above, which asks the
         # OS for a port.
-        def mock_port_free(port):
+        def mock_port_free(unused_port):
             return False
 
         with mock.patch.object(portpicker, 'is_port_free', mock_port_free):

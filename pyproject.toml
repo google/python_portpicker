@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py{36,37,38,39}
+envlist = py{37,38,39,310,311}
 isolated_build = true
 skip_missing_interpreters = true
 # minimum tox version
@@ -17,5 +17,5 @@ deps =
 commands =
     check-manifest --ignore 'src/tests/**'
     python -c 'from setuptools import setup; setup()' check -m -s
-    py.test -v -s {posargs}
+    py.test -vv -s {posargs}
 """
