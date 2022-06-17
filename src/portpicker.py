@@ -45,6 +45,7 @@ import os
 import random
 import socket
 import sys
+import time
 
 _winapi = None  # pylint: disable=invalid-name
 if sys.platform == 'win32':
@@ -255,7 +256,6 @@ def _spawn_bound_port_holding_daemon(port, bound_sockets, timeout):
     """
     if bound_sockets and timeout > 0:
         try:
-            import time  # pylint: disable=import-outside-toplevel
             fork_pid = os.fork()  # This concept only works on POSIX.
         except Exception as err:  # pylint: disable=broad-except
             print('WARNING: Cannot timeout unbinding close of port', port,
@@ -465,6 +465,8 @@ def main(argv):
     Older versions of portpicker ignore more than the first argument so passing
     a bind timeout value will silently have no effect on old versions.
     """
+    # Our command line is trivial so I avoid an argparse import. If we ever
+    # grow more than 1-2 args, switch to a using argparse.
     if '-h' in argv or '--help' in argv:
         print(argv[0], 'usage:')
         print(main.__doc__)
