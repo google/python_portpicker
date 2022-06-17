@@ -153,11 +153,8 @@ def _bind(port, socket_type, socket_proto, return_socket=None,
         finally:
             if return_socket is not None and family == return_family:
                 return_socket.append(sock)
-                # Guaranteed last iteration due to pre-loop logic. This
-                # just makes it clear no more iterations are useful.
-                break
-            else:
-                sock.close()
+                break  # Final iteration due to pre-loop logic; don't close.
+            sock.close()
     return port if got_socket else None
 
 
