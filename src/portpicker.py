@@ -35,6 +35,9 @@ Typical usage:
   test_port = portpicker.pick_unused_port()
 """
 
+# pylint: disable=consider-using-f-string
+# Some people still use this on old Pythons despite our test matrix and
+# supported versions.  Be kind for now, until it gets in our way.
 from __future__ import print_function
 
 import logging
@@ -43,10 +46,12 @@ import random
 import socket
 import sys
 
+_winapi = None  # pylint: disable=invalid-name
 if sys.platform == 'win32':
-    import _winapi
-else:
-    _winapi = None
+    try:
+        import _winapi
+    except ImportError:
+        _winapi = None
 
 # The legacy Bind, IsPortFree, etc. names are not exported.
 __all__ = ('bind', 'is_port_free', 'pick_unused_port', 'return_port',

@@ -1,8 +1,16 @@
+## 1.6.x
+
+*   Some pylint based refactorings to portpicker and portpicker\_test.
+*   Drop 3.6 from our CI test matrix and metadata. It probably still works
+    there, but expect our unittests to include 3.7-ism's in the future. We'll
+    *attempt* to avoid modern constructs in portpicker.py itself but zero
+    guarantees. Using an old Python? Use an old portpicker.
+
 ## 1.5.2
 
 *   Do not re-pick a known used (not-yet-returned) port when running stand alone
     without a portserver.
-    
+
 ## 1.5.1
 
 *   When not using a portserver *(you really should)*, try the `bind(0)`
