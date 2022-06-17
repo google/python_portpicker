@@ -115,7 +115,8 @@ def bind(port, socket_type, socket_proto):
     return _bind(port, socket_type, socket_proto)
 
 
-def _bind(port, socket_type, socket_proto, return_socket=None, return_family=socket.AF_INET6):
+def _bind(port, socket_type, socket_proto, return_socket=None,
+          return_family=socket.AF_INET6):
     """Internal implementation of bind.
 
     Args:
@@ -124,12 +125,16 @@ def _bind(port, socket_type, socket_proto, return_socket=None, return_family=soc
           reuseaddr socket on the port in question to.
       return_family: The socket family to return in return_socket.
     """
-    if return_family == socket.AF_INET6:
-        socket_families = (socket.AF_INET, socket.AF_INET6)
-    elif return_family == socket.AF_INET:
-        socket_families = (socket.AF_INET6, socket.AF_INET)
-    else:
-        raise ValueError('unknown return_family %s' % return_family)
+    socket_families = (socket.AF_INET6, socket.AF_INET)
+    if return_socket is not None:
+        # Our return family must come last when returning a bound socket
+        # as we cannot keep it bound while testing a bind on the other
+        # family with many network stack configurations.
+        if return_family == socket.AF_INET6:
+            socket_families = (socket.AF_INET, socket.AF_INET6)
+        elif return_family != socket.AF_INET:
+            raise ValueError('unknown return_family %s' % return_family)
+        assert socket_families[-1] == return_family
     got_socket = False
     for family in socket_families:
         try:
@@ -150,8 +155,6 @@ def _bind(port, socket_type, socket_proto, return_socket=None, return_family=soc
                 return_socket.append(sock)
                 # Guaranteed last iteration due to pre-loop logic. This
                 # just makes it clear no more iterations are useful.
-                # keeping the bound socket open prevents further bind calls
-                # from succeeding.
                 break
             else:
                 sock.close()
@@ -177,7 +180,8 @@ def _is_port_free(port, return_sockets=None):
       return_sockets: If supplied, a list that we will append open bound
         sockets on the port in question to rather than closing them.
     """
-    return _bind(port, *_PROTOS[0], return_socket=return_sockets) and _bind(port, *_PROTOS[1], return_socket=return_sockets)
+    return (_bind(port, *_PROTOS[0], return_socket=return_sockets) and
+            _bind(port, *_PROTOS[1], return_socket=return_sockets))
 
 
 def pick_unused_port(pid=None, portserver_address=None):
@@ -315,20 +319,22 @@ def _pick_unused_port_without_server(bind_timeout=0):
     rng = random.Random()
     for _ in range(10):
         port = int(rng.randrange(15000, 25000))
-        if port not in _random_ports and _is_port_free(port, bound_sockets):
-            _random_ports.add(port)
-            _spawn_bound_port_holding_daemon(port, bound_sockets, bind_timeout)
-            return port
-        elif bound_sockets:
-            for held_socket in bound_sockets:
-                held_socket.close()
-            del bound_sockets[:]
+        if port not in _random_ports:
+            if _is_port_free(port, bound_sockets):
+                _random_ports.add(port)
+                _spawn_bound_port_holding_daemon(
+                        port, bound_sockets, bind_timeout)
+                return port
+            elif bound_sockets:
+                for held_socket in bound_sockets:
+                    held_socket.close()
+                del bound_sockets[:]
 
     # Give up.
     raise NoFreePortFoundError()
 
 
-def _get_linux_port_from_port_server(portserver_address, pid):
+def _posix_get_port_from_port_server(portserver_address, pid):
     # An AF_UNIX address may start with a zero byte, in which case it is in the
     # "abstract namespace", and doesn't have any filesystem representation.
     # See 'man 7 unix' for details.
@@ -339,7 +345,7 @@ def _get_linux_port_from_port_server(portserver_address, pid):
     try:
         # Create socket.
         if hasattr(socket, 'AF_UNIX'):
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) # pylint: disable=no-member
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         else:
             # fallback to AF_INET if this is not unix
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -361,7 +367,7 @@ def _get_linux_port_from_port_server(portserver_address, pid):
         return None
 
 
-def _get_windows_port_from_port_server(portserver_address, pid):
+def _windows_get_port_from_port_server(portserver_address, pid):
     if portserver_address[0] == '@':
         portserver_address = '\\\\.\\pipe\\' + portserver_address[1:]
 
@@ -412,9 +418,9 @@ def get_port_from_port_server(portserver_address, pid=None):
         pid = os.getpid()
 
     if _winapi:
-        buf = _get_windows_port_from_port_server(portserver_address, pid)
+        buf = _windows_get_port_from_port_server(portserver_address, pid)
     else:
-        buf = _get_linux_port_from_port_server(portserver_address, pid)
+        buf = _posix_get_port_from_port_server(portserver_address, pid)
 
     if buf is None:
         return None
