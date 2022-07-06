@@ -478,6 +478,13 @@ class PortpickerCommandLineTests(unittest.TestCase):
         self.assertIn('usage', cmd.stdout)
         self.assertIn('passed an arg', cmd.stdout)
 
+    def test_command_line_help_text_dedented(self):
+        cmd = self._run_portpicker(['-h'])
+        self.assertNotEqual(0, cmd.returncode)
+        self.assertIn('\nIf passed an arg', cmd.stdout)
+        self.assertIn('\n  #!/bin/bash', cmd.stdout)
+        self.assertIn('\nOlder versions ', cmd.stdout)
+
     def test_command_line_interface(self):
         cmd = self._run_portpicker([str(os.getpid())])
         cmd.check_returncode()

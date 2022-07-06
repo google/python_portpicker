@@ -445,33 +445,36 @@ PickUnusedPort = pick_unused_port
 
 
 def main(argv):
-    """If passed an arg, treat it as a PID, otherwise portpicker uses getpid.
+    """If passed an arg, treat it as a PID, otherwise we use getppid().
 
-    A second optional argument can be a floating point bind timeout in seconds
-    that we will attempt to leave a process around holding the ports open bound
-    SO_REUSEADDR style. This bind with a timeout will only be attempted if no
-    portserver was found. If the timeout was not possible, we'll warn on stderr.
+    A second optional argument can be a bind timeout in seconds that will be
+    used ONLY if no portserver is found. We attempt to leave a process around
+    holding the port open and bound with SO_REUSEADDR set for timeout seconds.
+    If the timeout bind was not possible, a warning is emitted to stderr.
 
       #!/bin/bash
-      port="$(python -m portpicker $$ 3.14)"
+      port="$(python -m portpicker $$ 1.23)"
       test_my_server "$port"
 
-    This will pick a port for your script's PID and assign it to $port, while
-    attempting to keep a socket bound to it using SO_REUSEADDR for 3.14 seconds
-    after the portpicker process has exited if a portserver was not used. This
-    is a convenient hack to attempt to prevent port reallocation during scripts
-    outside of portserver managed environments such as developer workstations.
+    This will pick a port for your script's PID and assign it to $port, if no
+    portserver was used, it attempts to keep a socket bound to $port for 1.23
+    seconds after the portpicker process has exited. This is a convenient hack
+    to attempt to prevent port reallocation during scripts outside of
+    portserver managed environments.
 
-    Older versions of portpicker ignore more than the first argument so passing
-    a bind timeout value will silently have no effect on old versions.
+    Older versions of the portpicker CLI ignore everything beyond the first arg.
+    Older versions also used getpid() instead of getppid(), so script users are
+    strongly encouraged to be explicit and pass $$ or your languages equivalent
+    to associate the port with the PID of the controlling process.
     """
     # Our command line is trivial so I avoid an argparse import. If we ever
     # grow more than 1-2 args, switch to a using argparse.
     if '-h' in argv or '--help' in argv:
-        print(argv[0], 'usage:')
-        print(main.__doc__)
+        print(argv[0], 'usage:\n')
+        import inspect
+        print(inspect.getdoc(main))
         sys.exit(1)
-    pid=int(argv[1]) if len(argv) > 1 else None
+    pid=int(argv[1]) if len(argv) > 1 else os.getppid()
     bind_timeout=float(argv[2]) if len(argv) > 2 else 0
     port = _pick_unused_port(pid=pid, noserver_bind_timeout=bind_timeout)
     if not port:
