@@ -100,7 +100,7 @@ class PickUnusedPortTestWithAPortServer(CommonTestMixin, unittest.TestCase):
         if cls.portserver_process:
             if os.environ.get('PORTSERVER_ADDRESS') == cls.portserver_address:
                 del os.environ['PORTSERVER_ADDRESS']
-            if cls.portserver_process.poll() is not None:
+            if cls.portserver_process.poll() is None:
                 cls.portserver_process.kill()
                 cls.portserver_process.wait()
             cls.portserver_process = None
