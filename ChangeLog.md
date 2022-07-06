@@ -1,6 +1,9 @@
 ## 1.6.0b1
 
 *   Add -h and --help text to the command line tool.
+*   The command line interface now defaults to associating the returned port
+    with its parent process PID (usually the calling script) when no argument
+    was given as that makes more sense.
 *   When portpicker is used as a command line tool from a script, allow for
     ports chosen *without a portserver* to be kept bound to a socket by a child
     process for a user specified timeout. This hack *attempts* to minimize race
