@@ -125,17 +125,19 @@ def _bind(port, socket_type, socket_proto, return_socket=None,
       return_socket: If supplied, a list that we will append an open bound
           reuseaddr socket on the port in question to.
       return_family: The socket family to return in return_socket.
+
+    Returns:
+      The port number on success or None on failure.
     """
-    socket_families = (socket.AF_INET6, socket.AF_INET)
-    if return_socket is not None:
-        # Our return family must come last when returning a bound socket
-        # as we cannot keep it bound while testing a bind on the other
-        # family with many network stack configurations.
-        if return_family == socket.AF_INET6:
-            socket_families = (socket.AF_INET, socket.AF_INET6)
-        elif return_family != socket.AF_INET:
-            raise ValueError('unknown return_family %s' % return_family)
-        assert socket_families[-1] == return_family
+    # Our return family must come last when returning a bound socket
+    # as we cannot keep it bound while testing a bind on the other
+    # family with many network stack configurations.
+    if return_socket is None or return_family == socket.AF_INET:
+        socket_families = (socket.AF_INET6, socket.AF_INET)
+    elif return_family == socket.AF_INET6:
+        socket_families = (socket.AF_INET, socket.AF_INET6)
+    else:
+        raise ValueError('unknown return_family %s' % return_family)
     got_socket = False
     for family in socket_families:
         try:
@@ -165,8 +167,9 @@ def is_port_free(port):
 
     Args:
       port: integer, port to check
+
     Returns:
-      boolean, whether it is free to use for both TCP and UDP
+      bool, whether port is free to use for both TCP and UDP.
     """
     return _is_port_free(port)
 
@@ -178,6 +181,9 @@ def _is_port_free(port, return_sockets=None):
       port: integer, port to check
       return_sockets: If supplied, a list that we will append open bound
         sockets on the port in question to rather than closing them.
+
+    Returns:
+      bool, whether port is free to use for both TCP and UDP.
     """
     return (_bind(port, *_PROTOS[0], return_socket=return_sockets) and
             _bind(port, *_PROTOS[1], return_socket=return_sockets))
@@ -218,8 +224,8 @@ def _pick_unused_port(pid=None, portserver_address=None,
       noserver_bind_timeout: If no portserver was used, this is the number of
         seconds we will attempt to keep a child process around with the ports
         returned open and bound SO_REUSEADDR style to help avoid race condition
-        port reuse. This attempts os.fork() so it MUST NOT be used in a
-        threaded process.
+        port reuse. A non-zero value attempts os.fork(). Do not use it in a
+        multithreaded process.
     """
     try:  # Instead of `if _free_ports:` to handle the race condition.
         port = _free_ports.pop()
@@ -239,7 +245,6 @@ def _pick_unused_port(pid=None, portserver_address=None,
         if port:
             return port
     return _pick_unused_port_without_server(bind_timeout=noserver_bind_timeout)
-
 
 
 def _spawn_bound_port_holding_daemon(port, bound_sockets, timeout):
@@ -304,10 +309,10 @@ def _pick_unused_port_without_server(bind_timeout=0):
     bound_sockets = [] if bind_timeout > 0 else None
     for _ in range(10):
         # Ask the OS for an unused port.
-        port = _bind(0, _PROTOS[0][0], _PROTOS[0][1], bound_sockets)
+        port = _bind(0, socket.SOCK_STREAM, socket.IPPROTO_TCP, bound_sockets)
         # Check if this port is unused on the other protocol.
         if (port and port not in _random_ports and
-            _bind(port, _PROTOS[1][0], _PROTOS[1][1], bound_sockets)):
+            _bind(port, socket.SOCK_DGRAM, socket.IPPROTO_UDP, bound_sockets)):
             _random_ports.add(port)
             _spawn_bound_port_holding_daemon(port, bound_sockets, bind_timeout)
             return port
