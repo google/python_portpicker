@@ -1,5 +1,14 @@
-## 1.6.x
+## 1.6.0b1
 
+*   Add -h and --help text to the command line tool.
+*   The command line interface now defaults to associating the returned port
+    with its parent process PID (usually the calling script) when no argument
+    was given as that makes more sense.
+*   When portpicker is used as a command line tool from a script, if a port is
+    chosen without a portserver it can now be kept bound to a socket by a
+    child process for a user specified timeout. When successful, this helps
+    minimize race conditions as subsequent portpicker CLI invocations within
+    the timeout window cannot choose the same port.
 *   Some pylint based refactorings to portpicker and portpicker\_test.
 *   Drop 3.6 from our CI test matrix and metadata. It probably still works
     there, but expect our unittests to include 3.7-ism's in the future. We'll
