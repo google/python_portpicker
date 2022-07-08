@@ -280,7 +280,7 @@ def _spawn_bound_port_holding_daemon(port, bound_sockets, timeout):
                     for held_socket in bound_sockets:
                         held_socket.close()
                 finally:
-                    sys.exit(0)
+                    os._exit(0)
 
 
 def _pick_unused_port_without_server(bind_timeout=0):
