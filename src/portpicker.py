@@ -155,6 +155,14 @@ def _bind(port, socket_type, socket_proto, return_socket=None,
             return None
         finally:
             if return_socket is None or family != return_family:
+                try:
+                    # Adding this resolved 1 in ~500 flakiness that we were
+                    # seeing from an integration test framework managing a set
+                    # of ports with is_port_free().  close() doesn't move the
+                    # TCP state machine along quickly.
+                    sock.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
                 sock.close()
         if return_socket is not None and family == return_family:
             return_socket.append(sock)

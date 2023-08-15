@@ -1,6 +1,12 @@
+## 1.6.0
+
+*   Resolve an internal source of potential flakiness on the bind/close port
+    checks when used in active environments by calling `.shutdown()` before
+    `.close()`.
+
 ## 1.6.0b1
 
-*   Add -h and --help text to the command line tool.
+*   Add `-h` and `--help` text to the command line tool.
 *   The command line interface now defaults to associating the returned port
     with its parent process PID (usually the calling script) when no argument
     was given as that makes more sense.
